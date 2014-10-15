@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Social network (authorized)</title>
+	<script type="text/javascript" src="/static/main.js"></script>
+	<link rel="stylesheet" href="/static/main.css" />
+</head>
+<body>
+	<div class="login_info">Logged in as <b>{{.name}}</b> [<a href="/logout">logout</a>]</div>
+	<div class="onlines" id="online_users">online users</div>
+	<h1>Hello world!</h1>
+	<script>setWebsocketConnection();</script>
+</body>
+</html>

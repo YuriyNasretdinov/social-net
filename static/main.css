@@ -1,0 +1,15 @@
+.login_info {
+	position: fixed;
+	top: 5px;
+	right: 10px;
+}
+
+.onlines {
+	position: fixed;
+	bottom: 0px;
+	right: 0px;
+	padding: 5px;
+	width: 150px;
+	border-top: 1px black solid;
+	border-left: 1px black solid;
+}
