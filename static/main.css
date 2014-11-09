@@ -13,3 +13,47 @@
 	border-top: 1px black solid;
 	border-left: 1px black solid;
 }
+
+.left_menu {
+	position: fixed;
+	width: 190px;
+	border-right: 1px black solid;
+	padding: 5px;
+	margin: 0px;
+	top: 0;
+	left: 0;
+	height: 100vh;
+}
+
+.content {
+	margin-left: 200px;
+}
+
+.messages {
+	
+}
+
+.message {
+	clear: after;
+	border: 1px green solid;
+	border-radius: 3px;
+	padding: 3px;
+}
+
+.users {
+	border-bottom: 1px black solid;
+	padding: 3px;
+}
+
+.user {
+	display: inline-block;
+	padding: 3px;
+	border-radius: 3px;
+	border: 1px blue solid;
+	background: rgb(172, 209, 255);
+	cursor: pointer;
+}
+
+.messages_texts {
+	padding: 3px;
+}

@@ -8,7 +8,28 @@
 <body>
 	<div class="login_info">Logged in as <b>{{.name}}</b> [<a href="/logout">logout</a>]</div>
 	<div class="onlines" id="online_users">online users</div>
-	<h1>Hello world!</h1>
-	<script>setWebsocketConnection();</script>
+	<div class="left_menu">
+		<a href="/messages/" id="messages_link">Messages</a>
+	</div>
+	<div class="content">
+		<div class="messages">
+			<div class="users" id="users">
+				<div class="user">
+					userName1
+				</div>
+
+				<div class="user">
+					userName2
+				</div>
+			</div>
+			<div class="messages_texts" id="messages_texts">
+				messages texts
+			</div>
+		</div>
+	</div>
+	<script>
+		setWebsocketConnection();
+		setUpPage();
+	</script>
 </body>
 </html>
