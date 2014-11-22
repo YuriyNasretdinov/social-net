@@ -8,10 +8,21 @@ CREATE TABLE `Messages` (
   `user_id_to` int(10) unsigned NOT NULL,
   `msg_type` enum('In','Out') NOT NULL DEFAULT 'In',
   `message` longtext NOT NULL,
-  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `ts` bigint(20) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`,`user_id_to`,`ts`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8;
+  UNIQUE KEY `user_id` (`user_id`,`user_id_to`,`ts`)
+) ENGINE=InnoDB AUTO_INCREMENT=131 DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'Timeline'
+CREATE TABLE `Timeline` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) unsigned NOT NULL,
+  `source_user_id` int(10) unsigned NOT NULL,
+  `message` longtext NOT NULL,
+  `ts` bigint(20) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_id` (`user_id`,`ts`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8;
 
 -- Create syntax for TABLE 'User'
 CREATE TABLE `User` (
