@@ -3,6 +3,10 @@ var seqId = 0
 var rcvCallbacks = {}
 var websocket
 
+var DEFAULT_MESSAGES_LIMIT = 5
+
+var tabs = ['messages', 'timeline']
+
 function onUserConnect(userInfo) {
 	var userId = userInfo.Id
 	if (allUsers[userId]) {
@@ -33,12 +37,19 @@ function onMessage(evt) {
 		onUserConnect(reply)
 	} else if (reply.Type == 'EVENT_USER_DISCONNECTED') {
 		onUserDisconnect(reply)
+	} else if (reply.Type == 'EVENT_NEW_MESSAGE') {
+		onNewMessage(reply)
 	} else {
 		if (!rcvCallbacks[reply.SeqId]) {
 			console.log("Received response for missing seqid")
 			console.log(reply)
 		} else {
-			rcvCallbacks[reply.SeqId](reply)
+			if (reply.Type == 'REPLY_ERROR') {
+				console.log(reply.Message)
+			} else {
+				rcvCallbacks[reply.SeqId](reply)
+			}
+			
 			delete(rcvCallbacks[reply.SeqId])
 		}
 	}
@@ -46,38 +57,14 @@ function onMessage(evt) {
 	redrawUsers()
 }
 
-function sendReq(req, onrcv) {
-	var ourSeqId = seqId
+function sendReq(reqType, reqData, onrcv) {
+	websocket.send(JSON.stringify({
+		SeqId: seqId,
+		Type: reqType,
+		ReqData: JSON.stringify(reqData),
+	}))
+	rcvCallbacks[seqId] = onrcv
 	seqId++
-	req.SeqId = ourSeqId
-	websocket.send(JSON.stringify(req))
-	rcvCallbacks[ourSeqId] = onrcv
-}
-
-function showMessagesResponse(reply) {
-	var messages = []
-	var len = reply.Messages.length
-	var haveMore = false
-	if (len > 5) {
-		len = 5
-		messages.push("...")
-	}
-	for (var i = len - 1; i >= 0; i--) {
-		var msg = reply.Messages[i]
-		messages.push('<div class="message">' + msg.Text + '</div>')
-	}
-
-	document.getElementById("messages_texts").innerHTML = messages.join('')
-}
-
-function showMessages(id) {
-	sendReq(
-		{Type: "REQUEST_GET_MESSAGES", ReqData: JSON.stringify({
-			UserTo: +id,
-			Limit: 6,
-		})},
-		showMessagesResponse
-	)
 }
 
 function redrawUsers() {
@@ -86,6 +73,7 @@ function redrawUsers() {
 
 	for (var userId in allUsers) {
 		var userInfo = allUsers[userId]
+        if (userId == ourUserId) continue
 		str += '<br/>' + userInfo.Name
 		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
 	}
@@ -128,9 +116,31 @@ function addEv(id, evName, func) {
 	return true
 }
 
+function hideAll() {
+    for (var i = 0; i < tabs.length; i++) {
+        document.getElementById(tabs[i]).style.display = 'none'
+    }
+}
+
+function showCurrent() {
+    for (var i = 0; i < tabs.length; i++) {
+        var tab = tabs[i]
+        if (location.pathname.indexOf('/' + tab + '/') !== -1) {
+            document.getElementById(tabs[i]).style.display = ''
+            break
+        }
+    }
+}
+
+function changeLocation(title, url) {
+    history.replaceState(null, title, url)
+    hideAll()
+    showCurrent()
+}
+
 function setUpPage() {
-	addEv("messages_link", "click", function(ev) {
-		document.getElementsByClassName("messages")[0].style.display = ''
-		return false
-	})
+    hideAll()
+	setUpMessagesPage()
+    setUpTimelinePage()
+    showCurrent()
 }

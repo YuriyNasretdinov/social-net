@@ -3,16 +3,19 @@
 <head>
 	<title>Social network (authorized)</title>
 	<script type="text/javascript" src="/static/main.js"></script>
+	<script type="text/javascript" src="/static/messages.js"></script>
+	<script type="text/javascript" src="/static/timeline.js"></script>
 	<link rel="stylesheet" href="/static/main.css" />
 </head>
 <body>
 	<div class="login_info">Logged in as <b>{{.name}}</b> [<a href="/logout">logout</a>]</div>
 	<div class="onlines" id="online_users">online users</div>
 	<div class="left_menu">
-		<a href="/messages/" id="messages_link">Messages</a>
+        <div><a href="/timeline/" id="timeline_link">Timeline</a></div>
+		<div><a href="/messages/" id="messages_link">Messages</a></div>
 	</div>
 	<div class="content">
-		<div class="messages">
+		<div class="messages" id="messages">
 			<div class="users" id="users">
 				<div class="user">
 					userName1
@@ -23,11 +26,22 @@
 				</div>
 			</div>
 			<div class="messages_texts" id="messages_texts">
-				messages texts
+
+			</div>
+			<div class="message_form">
+                <b>Write message:</b>
+                <input type="text" id="msg" />
 			</div>
 		</div>
+        <div class="timeline" id="timeline">
+            <div class="timeline_form">
+                <b>How you are feeling today?</b>
+                <input type="text" id="timeline_msg" />
+            </div>
+        </div>
 	</div>
 	<script>
+        var ourUserId = {{.id}};
 		setWebsocketConnection();
 		setUpPage();
 	</script>

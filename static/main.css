@@ -6,12 +6,14 @@
 
 .onlines {
 	position: fixed;
-	bottom: 0px;
-	right: 0px;
+	bottom: 0;
+	right: 0;
 	padding: 5px;
 	width: 150px;
 	border-top: 1px black solid;
 	border-left: 1px black solid;
+    z-index: 2;
+    background: white;
 }
 
 .left_menu {
@@ -19,7 +21,7 @@
 	width: 190px;
 	border-right: 1px black solid;
 	padding: 5px;
-	margin: 0px;
+	margin: 0;
 	top: 0;
 	left: 0;
 	height: 100vh;
@@ -33,16 +35,40 @@
 	
 }
 
+#messages_show_more {
+	cursor: pointer;
+}
+
 .message {
-	clear: after;
-	border: 1px green solid;
-	border-radius: 3px;
 	padding: 3px;
+	margin: 3px;
+}
+
+.message_out {
+    text-align: right;
+}
+
+.message .ts {
+    float: right;
+    font-size: 10px;
+    color: grey;
+    padding-left: 5px;
+    padding-top: 3px;
 }
 
 .users {
 	border-bottom: 1px black solid;
 	padding: 3px;
+    position: fixed;
+    background: white;
+    z-index: 1;
+}
+
+.message_form {
+    position: fixed;
+    bottom: 0;
+    z-index: 1;
+    background: white;
 }
 
 .user {
@@ -55,5 +81,5 @@
 }
 
 .messages_texts {
-	padding: 3px;
+    padding: 40px 200px 20px 3px;
 }
