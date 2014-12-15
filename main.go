@@ -23,6 +23,7 @@ const (
 	EVENT_ONLINE_USERS_LIST
 	EVENT_USER_REPLY
 	EVENT_NEW_MESSAGE
+	EVENT_NEW_TIMELINE_EVENT
 
 	REQUEST_GET_MESSAGES = iota
 	REQUEST_SEND_MESSAGE
@@ -74,7 +75,7 @@ type (
 	}
 
 	RequestAddToTimeline struct {
-		Message string
+		Text string
 	}
 
 	BaseReply struct {
@@ -138,6 +139,11 @@ type (
 		Message
 	}
 
+	EventNewTimelineEvent struct {
+		BaseEvent
+		TimelineMessage
+	}
+
 	ControlEvent struct {
 		evType   uint8
 		info     map[string]string
@@ -159,6 +165,9 @@ var (
 	// Timeline
 	getFromTimelineStmt *sql.Stmt
 	addToTimelineStmt   *sql.Stmt
+
+	// Users
+	getFriendsList *sql.Stmt
 
 	eventsFlow = make(chan *ControlEvent, 200)
 )
@@ -383,7 +392,21 @@ func handleNewMessage(listenerMap map[chan interface{}]map[string]string, userLi
 			listener <- toEv
 		}
 	}
+}
 
+func handleNewTimelineEvent(listenerMap map[chan interface{}]map[string]string, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
+	for listener := range listenerMap {
+		if len(listener) >= cap(listener) {
+			continue
+		}
+		userEv := new(EventNewTimelineEvent)
+		userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
+		userEv.Ts = ev.info["Ts"]
+		userEv.UserId = ev.info["UserId"]
+		userEv.Text = ev.info["Text"]
+		userEv.UserName = ev.info["UserName"]
+		listener <- userEv
+	}
 }
 
 func EventsDispatcher() {
@@ -397,6 +420,8 @@ func EventsDispatcher() {
 			handleUserDisconnected(listenerMap, userListeners, ev)
 		} else if ev.evType == EVENT_NEW_MESSAGE {
 			handleNewMessage(listenerMap, userListeners, ev)
+		} else if ev.evType == EVENT_NEW_TIMELINE_EVENT {
+			handleNewTimelineEvent(listenerMap, userListeners, ev)
 		} else if ev.evType == EVENT_USER_REPLY {
 			if _, ok := listenerMap[ev.listener]; !ok {
 				continue
@@ -562,6 +587,73 @@ func processSendMessage(req *RequestSendMessage, seqId int, recvChan chan interf
 	}
 }
 
+func getUserFriends(userId uint64) (userIds []uint64, err error) {
+	res, err := getFriendsList.Query()
+	if err != nil {
+		return
+	}
+
+	defer res.Close()
+
+	userIds = make([]uint64, 0)
+
+	for res.Next() {
+		var uid uint64
+		if err = res.Scan(&uid); err != nil {
+			log.Println(err.Error())
+			return
+		}
+
+		userIds = append(userIds, uid)
+	}
+
+	return
+}
+
+func processAddToTimeline(req *RequestAddToTimeline, seqId int, recvChan chan interface{}, userId uint64, userName string) {
+	var (
+		err error
+		now = time.Now().UnixNano()
+	)
+
+	userIds, err := getUserFriends(userId)
+	if err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Could not get user ids")
+		return
+	}
+
+	for _, uid := range userIds {
+		if _, err = addToTimelineStmt.Exec(uid, userId, req.Text, now); err != nil {
+			log.Println(err.Error())
+			sendError(seqId, recvChan, "Could not add to timeline")
+			return
+		}
+	}
+
+	reply := new(ReplyGeneric)
+	reply.SeqId = seqId
+	reply.Type = "REPLY_GENERIC"
+	reply.Success = true
+
+	eventsFlow <- &ControlEvent{
+		evType:   EVENT_USER_REPLY,
+		listener: recvChan,
+		reply:    reply,
+	}
+
+	eventsFlow <- &ControlEvent{
+		evType:   EVENT_NEW_TIMELINE_EVENT,
+		listener: recvChan,
+		info: map[string]string{
+			"UserId":   fmt.Sprint(userId),
+			"UserName": userName,
+			"Ts":       fmt.Sprint(now),
+			"Text":     req.Text,
+		},
+	}
+}
+
 func EventsHandler(ws *websocket.Conn) {
 	var info map[string]string
 
@@ -615,6 +707,14 @@ func EventsHandler(ws *websocket.Conn) {
 				}
 
 				go processGetTimeline(userReq, req.SeqId, recvChan, userId)
+			} else if req.Type == "REQUEST_ADD_TO_TIMELINE" {
+				userReq := new(RequestAddToTimeline)
+				if err := json.Unmarshal([]byte(req.ReqData), userReq); err != nil {
+					sendError(req.SeqId, recvChan, "Cannot unmarshal "+req.ReqData+": "+err.Error())
+					continue
+				}
+
+				go processAddToTimeline(userReq, req.SeqId, recvChan, userId, info["name"])
 			} else {
 				sendError(req.SeqId, recvChan, "Invalid request type: "+req.Type)
 				continue
@@ -677,6 +777,11 @@ func initStmts(db *sql.DB) {
 		LIMIT ?`)
 	if err != nil {
 		log.Fatal("Could not prepare get from timeline: " + err.Error())
+	}
+
+	getFriendsList, err = db.Prepare(`SELECT id FROM User`)
+	if err != nil {
+		log.Fatal("Could not prepare get friends list: " + err.Error())
 	}
 }
 

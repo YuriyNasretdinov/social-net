@@ -24,17 +24,7 @@ function createMsgEl(msg) {
         div.className += ' message_out'
     }
     div.appendChild(document.createTextNode(msg.Text))
-    var tsEl = document.createElement('div')
-    tsEl.className = 'ts'
-    var dt = new Date(msg.Ts / 1e6)
-    tsEl.appendChild(
-        document.createTextNode(
-            fmtDate(dt.getHours()) + ':' +
-            fmtDate(dt.getMinutes()) + ':' +
-            fmtDate(dt.getSeconds())
-        )
-    )
-    div.appendChild(tsEl)
+    div.appendChild(createTsEl(msg.Ts))
     return div
 }
 
@@ -55,8 +45,8 @@ function showMessagesResponse(id, reply, erase) {
 	}
 
 	if (len > DEFAULT_MESSAGES_LIMIT) {
-		div = document.createElement('div')
-		textEl = document.createTextNode('...')
+		var div = document.createElement('div')
+		var textEl = document.createTextNode('...')
 		div.appendChild(textEl)
 		div.id = 'messages_show_more'
 		el.insertBefore(div, el.firstChild)

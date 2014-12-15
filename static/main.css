@@ -35,7 +35,7 @@
 	
 }
 
-#messages_show_more {
+#messages_show_more, #timeline_show_more {
 	cursor: pointer;
 }
 
@@ -48,7 +48,7 @@
     text-align: right;
 }
 
-.message .ts {
+.message .ts, .timeline_event .ts {
     float: right;
     font-size: 10px;
     color: grey;
@@ -80,6 +80,24 @@
 	cursor: pointer;
 }
 
-.messages_texts {
+.messages_texts, .timeline_texts {
     padding: 40px 200px 20px 3px;
 }
+
+/* Timeline */
+
+.timeline_texts {
+    padding-top: 10px;
+}
+
+.timeline_username {
+    float: left;
+    font-weight: bold;
+    display: inline-block;
+    padding-right: 10px;
+}
+
+.timeline_event {
+
+}
+

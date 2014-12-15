@@ -3,6 +3,9 @@ var seqId = 0
 var rcvCallbacks = {}
 var websocket
 
+var connected = false
+var pendingRequests = []
+
 var DEFAULT_MESSAGES_LIMIT = 5
 
 var tabs = ['messages', 'timeline']
@@ -39,6 +42,8 @@ function onMessage(evt) {
 		onUserDisconnect(reply)
 	} else if (reply.Type == 'EVENT_NEW_MESSAGE') {
 		onNewMessage(reply)
+	} else if (reply.Type == 'EVENT_NEW_TIMELINE_EVENT') {
+		onNewTimelineEvent(reply)
 	} else {
 		if (!rcvCallbacks[reply.SeqId]) {
 			console.log("Received response for missing seqid")
@@ -58,13 +63,21 @@ function onMessage(evt) {
 }
 
 function sendReq(reqType, reqData, onrcv) {
-	websocket.send(JSON.stringify({
-		SeqId: seqId,
-		Type: reqType,
-		ReqData: JSON.stringify(reqData),
-	}))
-	rcvCallbacks[seqId] = onrcv
-	seqId++
+    var cb = function() {
+        websocket.send(JSON.stringify({
+            SeqId: seqId,
+            Type: reqType,
+            ReqData: JSON.stringify(reqData),
+        }))
+        rcvCallbacks[seqId] = onrcv
+        seqId++
+    }
+
+    if (connected) {
+        cb()
+    } else {
+        pendingRequests.push(cb)
+    }
 }
 
 function redrawUsers() {
@@ -91,8 +104,19 @@ function redrawUsers() {
 function setWebsocketConnection() {
 	rcvCallbacks = {}
 	websocket = new WebSocket("ws://" + window.location.host + "/events")
-	websocket.onopen = function(evt) { console.log("open") }
-	websocket.onclose = function(evt) { console.log("close"); setTimeout(setWebsocketConnection, 1000) }
+	websocket.onopen = function(evt) {
+        connected = true
+        for (var i = 0; i < pendingRequests.length; i++) {
+            pendingRequests[i]()
+        }
+    }
+	websocket.onclose = function(evt) {
+        pendingRequests = []
+        connected = false
+
+        console.log("close")
+        setTimeout(setWebsocketConnection, 1000)
+    }
 	websocket.onmessage = onMessage
 	websocket.onerror = function(evt) { console.log("Error: " + evt) }
 }
@@ -138,9 +162,25 @@ function changeLocation(title, url) {
     showCurrent()
 }
 
+function createTsEl(ts) {
+    var tsEl = document.createElement('div')
+    tsEl.className = 'ts'
+    var dt = new Date(ts / 1e6)
+    tsEl.appendChild(
+        document.createTextNode(
+            fmtDate(dt.getHours()) + ':' +
+                fmtDate(dt.getMinutes()) + ':' +
+                fmtDate(dt.getSeconds())
+        )
+    )
+    return tsEl
+}
+
 function setUpPage() {
     hideAll()
 	setUpMessagesPage()
     setUpTimelinePage()
     showCurrent()
+
+    showTimeline()
 }
