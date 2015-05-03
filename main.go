@@ -1,13 +1,11 @@
 package main
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"crypto/md5"
 	"crypto/sha1"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"io"
 	"log"
 	"net/http"
@@ -15,6 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"code.google.com/p/go.net/websocket"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
