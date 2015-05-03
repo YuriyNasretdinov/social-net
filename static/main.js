@@ -64,11 +64,8 @@ function onMessage(evt) {
 
 function sendReq(reqType, reqData, onrcv) {
     var cb = function() {
-        websocket.send(JSON.stringify({
-            SeqId: seqId,
-            Type: reqType,
-            ReqData: JSON.stringify(reqData),
-        }))
+		var msg = reqType + " " + seqId + "\n" + JSON.stringify(reqData)
+        websocket.send(msg)
         rcvCallbacks[seqId] = onrcv
         seqId++
     }

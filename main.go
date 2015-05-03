@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/md5"
 	"crypto/sha1"
 	"database/sql"
@@ -140,22 +141,34 @@ type (
 		Message
 	}
 
-	EventNewTimelineEvent struct {
+	InternalEventNewMessage struct {
+		UserFrom uint64
+		UserTo   uint64
+		Ts       string
+		Text     string
+	}
+
+	EventNewTimelineStatus struct {
 		BaseEvent
 		TimelineMessage
 	}
 
+	InternalEventNewTimelineStatus struct {
+		UserId   uint64
+		UserName string
+		Ts       string
+		Text     string
+	}
+
 	ControlEvent struct {
 		evType   uint8
-		info     map[string]string
+		info     interface{}
 		reply    interface{}
 		listener chan interface{}
 	}
 )
 
 var (
-	db *sql.DB
-
 	// Authorization
 	loginStmt *sql.Stmt
 
@@ -224,7 +237,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	sessionId, err := createSession(map[string]string{"id": fmt.Sprint(id), "name": name})
+	sessionId, err := createSession(&SessionInfo{Id: id, Name: name})
 
 	cookie := &http.Cookie{
 		Name:    "id",
@@ -255,11 +268,13 @@ func passwordHash(password string) string {
 	return fmt.Sprintf("%x:%x", sh.Sum(nil), md.Sum(nil))
 }
 
-func serveAuthPage(info map[string]string, w http.ResponseWriter) {
-	authTpl.Execute(w, info)
+func serveAuthPage(info *SessionInfo, w http.ResponseWriter) {
+	if err := authTpl.Execute(w, info); err != nil {
+		fmt.Println("Could not render template: " + err.Error())
+	}
 }
 
-func getAuthUserInfo(cookies []*http.Cookie) map[string]string {
+func getAuthUserInfo(cookies []*http.Cookie) *SessionInfo {
 	for _, cook := range cookies {
 		if cook.Name == "id" && cook.Value != "" {
 			info, err := getSessionInfo(cook.Value)
@@ -284,16 +299,16 @@ func IndexHandler(w http.ResponseWriter, req *http.Request) {
 	serveStatic("static/index.html", w)
 }
 
-func handleUserConnected(listenerMap map[chan interface{}]map[string]string, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
-	userId, err := strconv.ParseUint(ev.info["id"], 10, 64)
-	if err != nil {
-		log.Println("Cannot parse id: ", err.Error())
+func handleUserConnected(listenerMap map[chan interface{}]*SessionInfo, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
+	evInfo, ok := ev.info.(*SessionInfo)
+	if !ok {
+		log.Println("VERY BAD: Type assertion failed: ev info is not SessionInfo")
 		return
 	}
 
 	currentUsers := make([]UserInfo, 0, len(listenerMap))
 	for _, info := range listenerMap {
-		currentUsers = append(currentUsers, UserInfo{Name: info["name"], Id: info["id"]})
+		currentUsers = append(currentUsers, UserInfo{Name: info.Name, Id: fmt.Sprint(info.Id)})
 	}
 
 	ouEvent := new(EventOnlineUsersList)
@@ -301,13 +316,13 @@ func handleUserConnected(listenerMap map[chan interface{}]map[string]string, use
 	ouEvent.Users = currentUsers
 	ev.listener <- ouEvent
 
-	listenerMap[ev.listener] = ev.info
+	listenerMap[ev.listener] = evInfo
 
-	if userListeners[userId] == nil {
-		userListeners[userId] = make(map[chan interface{}]bool)
+	if userListeners[evInfo.Id] == nil {
+		userListeners[evInfo.Id] = make(map[chan interface{}]bool)
 	}
 
-	userListeners[userId][ev.listener] = true
+	userListeners[evInfo.Id][ev.listener] = true
 
 	for listener := range listenerMap {
 		if len(listener) >= cap(listener) {
@@ -316,24 +331,24 @@ func handleUserConnected(listenerMap map[chan interface{}]map[string]string, use
 
 		event := new(EventUserConnected)
 		event.Type = "EVENT_USER_CONNECTED"
-		event.Name = ev.info["name"]
-		event.Id = ev.info["id"]
+		event.Name = evInfo.Name
+		event.Id = fmt.Sprint(evInfo.Id)
 		listener <- event
 	}
 }
 
-func handleUserDisconnected(listenerMap map[chan interface{}]map[string]string, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
-	userId, err := strconv.ParseUint(ev.info["id"], 10, 64)
-	if err != nil {
-		log.Println("Cannot parse id: ", err.Error())
+func handleUserDisconnected(listenerMap map[chan interface{}]*SessionInfo, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
+	evInfo, ok := ev.info.(*SessionInfo)
+	if !ok {
+		log.Println("VERY BAD: Type assertion failed: ev info is not SessionInfo when user disconnects")
 		return
 	}
 
 	delete(listenerMap, ev.listener)
-	if userListeners[userId] != nil {
-		delete(userListeners[userId], ev.listener)
-		if len(userListeners[userId]) == 0 {
-			delete(userListeners, userId)
+	if userListeners[evInfo.Id] != nil {
+		delete(userListeners[evInfo.Id], ev.listener)
+		if len(userListeners[evInfo.Id]) == 0 {
+			delete(userListeners, evInfo.Id)
 		}
 	}
 
@@ -344,74 +359,74 @@ func handleUserDisconnected(listenerMap map[chan interface{}]map[string]string, 
 
 		event := new(EventUserDisconnected)
 		event.Type = "EVENT_USER_DISCONNECTED"
-		event.Name = ev.info["name"]
-		event.Id = ev.info["id"]
+		event.Name = evInfo.Name
+		event.Id = fmt.Sprint(evInfo.Id)
 		listener <- event
 	}
 }
 
-func handleNewMessage(listenerMap map[chan interface{}]map[string]string, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
-	userIdFrom, err := strconv.ParseUint(ev.info["UserFrom"], 10, 64)
-	if err != nil {
-		log.Println("Cannot decode userIdFrom: ", err.Error())
-		return
-	}
-
-	userIdTo, err := strconv.ParseUint(ev.info["UserTo"], 10, 64)
-	if err != nil {
-		log.Println("Cannot decode userIdTo: ", err.Error())
+func handleNewMessage(listenerMap map[chan interface{}]*SessionInfo, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
+	sourceEvent, ok := ev.info.(*InternalEventNewMessage)
+	if !ok {
+		log.Println("VERY BAD: Type assertion failed: source event is not InternalEventNewMessage in handleNewMessage")
 		return
 	}
 
 	event := new(EventNewMessage)
 	event.Type = "EVENT_NEW_MESSAGE"
-	event.Ts = ev.info["Ts"]
-	event.Text = ev.info["Text"]
+	event.Ts = sourceEvent.Ts
+	event.Text = sourceEvent.Text
 
-	if userListeners[userIdFrom] != nil {
-		for listener := range userListeners[userIdFrom] {
+	if userListeners[sourceEvent.UserFrom] != nil {
+		for listener := range userListeners[sourceEvent.UserFrom] {
 			if len(listener) >= cap(listener) {
 				continue
 			}
 			fromEv := new(EventNewMessage)
 			*fromEv = *event
-			fromEv.UserFrom = ev.info["UserTo"]
+			fromEv.UserFrom = fmt.Sprint(sourceEvent.UserTo)
 			fromEv.MsgType = MSG_TYPE_OUT
 			listener <- fromEv
 		}
 	}
 
-	if userListeners[userIdTo] != nil {
-		for listener := range userListeners[userIdTo] {
+	if userListeners[sourceEvent.UserTo] != nil {
+		for listener := range userListeners[sourceEvent.UserTo] {
 			if len(listener) >= cap(listener) {
 				continue
 			}
 			toEv := new(EventNewMessage)
 			*toEv = *event
-			toEv.UserFrom = ev.info["UserFrom"]
+			toEv.UserFrom = fmt.Sprint(sourceEvent.UserTo)
 			toEv.MsgType = MSG_TYPE_IN
 			listener <- toEv
 		}
 	}
 }
 
-func handleNewTimelineEvent(listenerMap map[chan interface{}]map[string]string, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
+func handleNewTimelineEvent(listenerMap map[chan interface{}]*SessionInfo, userListeners map[uint64]map[chan interface{}]bool, ev *ControlEvent) {
+	evInfo, ok := ev.info.(*InternalEventNewTimelineStatus)
+	if !ok {
+		log.Println("Type assertion failed: evInfo is not InternalEventNewTimelineStatus in handleNewTimelineEvent")
+		return
+	}
+
 	for listener := range listenerMap {
 		if len(listener) >= cap(listener) {
 			continue
 		}
-		userEv := new(EventNewTimelineEvent)
+		userEv := new(EventNewTimelineStatus)
 		userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
-		userEv.Ts = ev.info["Ts"]
-		userEv.UserId = ev.info["UserId"]
-		userEv.Text = ev.info["Text"]
-		userEv.UserName = ev.info["UserName"]
+		userEv.Ts = evInfo.Ts
+		userEv.UserId = fmt.Sprint(evInfo.UserId)
+		userEv.Text = evInfo.Text
+		userEv.UserName = evInfo.UserName
 		listener <- userEv
 	}
 }
 
 func EventsDispatcher() {
-	listenerMap := make(map[chan interface{}]map[string]string)
+	listenerMap := make(map[chan interface{}]*SessionInfo)
 	userListeners := make(map[uint64]map[chan interface{}]bool)
 
 	for ev := range eventsFlow {
@@ -579,11 +594,11 @@ func processSendMessage(req *RequestSendMessage, seqId int, recvChan chan interf
 	eventsFlow <- &ControlEvent{
 		evType:   EVENT_NEW_MESSAGE,
 		listener: recvChan,
-		info: map[string]string{
-			"UserFrom": fmt.Sprint(userId),
-			"UserTo":   fmt.Sprint(req.UserTo),
-			"Ts":       fmt.Sprint(now),
-			"Text":     req.Text,
+		info: &InternalEventNewMessage{
+			UserFrom: userId,
+			UserTo:   req.UserTo,
+			Ts:       fmt.Sprint(now),
+			Text:     req.Text,
 		},
 	}
 }
@@ -646,78 +661,93 @@ func processAddToTimeline(req *RequestAddToTimeline, seqId int, recvChan chan in
 	eventsFlow <- &ControlEvent{
 		evType:   EVENT_NEW_TIMELINE_EVENT,
 		listener: recvChan,
-		info: map[string]string{
-			"UserId":   fmt.Sprint(userId),
-			"UserName": userName,
-			"Ts":       fmt.Sprint(now),
-			"Text":     req.Text,
+		info: &InternalEventNewTimelineStatus{
+			UserId:   userId,
+			UserName: userName,
+			Ts:       fmt.Sprint(now),
+			Text:     req.Text,
 		},
 	}
 }
 
 func EventsHandler(ws *websocket.Conn) {
-	var info map[string]string
+	var userInfo *SessionInfo
 
-	if info = getAuthUserInfo(ws.Request().Cookies()); info == nil {
+	if userInfo = getAuthUserInfo(ws.Request().Cookies()); userInfo == nil {
 		ws.Write([]byte("AUTH_ERROR"))
 		return
 	}
 
-	userId, err := strconv.ParseUint(info["id"], 10, 64)
-	if err != nil {
-		ws.Write([]byte("Cannot parse user id"))
-		log.Println("Corrupt memcache user info: ", err.Error())
-		return
-	}
+	rd := bufio.NewReader(ws)
+	decoder := json.NewDecoder(rd)
 
 	recvChan := make(chan interface{}, 100)
-	eventsFlow <- &ControlEvent{evType: EVENT_USER_CONNECTED, info: info, listener: recvChan}
-	defer func() { eventsFlow <- &ControlEvent{evType: EVENT_USER_DISCONNECTED, info: info, listener: recvChan} }()
+	eventsFlow <- &ControlEvent{evType: EVENT_USER_CONNECTED, info: userInfo, listener: recvChan}
+	defer func() {
+		eventsFlow <- &ControlEvent{evType: EVENT_USER_DISCONNECTED, info: userInfo, listener: recvChan}
+	}()
 
 	go func() {
-		for {
-			req := new(BaseRequest)
+		defer func() {
+			ws.Close()
+			recvChan <- nil
+		}()
 
-			if err := websocket.JSON.Receive(ws, req); err != nil {
-				ws.Close()
-				recvChan <- nil
+		for {
+			reqType, err := rd.ReadString(' ')
+			if err != nil {
+				log.Println("Could not read request type from client: ", err.Error())
 				return
 			}
 
-			if req.Type == "REQUEST_GET_MESSAGES" {
+			reqType = reqType[:len(reqType)-1]
+
+			seqIdStr, err := rd.ReadString('\n')
+			if err != nil {
+				log.Println("Could not read seq id string: ", err.Error())
+				return
+			}
+
+			seqId, err := strconv.Atoi(seqIdStr[:len(seqIdStr)-1])
+			if err != nil {
+				log.Println("Sequence id is not int: ", err.Error())
+				return
+			}
+
+			if reqType == "REQUEST_GET_MESSAGES" {
 				userReq := new(RequestGetMessages)
-				if err := json.Unmarshal([]byte(req.ReqData), userReq); err != nil {
-					sendError(req.SeqId, recvChan, "Cannot unmarshal "+req.ReqData+": "+err.Error())
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
 					continue
 				}
 
-				go processGetMessages(userReq, req.SeqId, recvChan, userId)
-			} else if req.Type == "REQUEST_SEND_MESSAGE" {
+				go processGetMessages(userReq, seqId, recvChan, userInfo.Id)
+			} else if reqType == "REQUEST_SEND_MESSAGE" {
 				userReq := new(RequestSendMessage)
-				if err := json.Unmarshal([]byte(req.ReqData), userReq); err != nil {
-					sendError(req.SeqId, recvChan, "Cannot unmarshal "+req.ReqData+": "+err.Error())
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
 					continue
 				}
 
-				go processSendMessage(userReq, req.SeqId, recvChan, userId)
-			} else if req.Type == "REQUEST_GET_TIMELINE" {
+				go processSendMessage(userReq, seqId, recvChan, userInfo.Id)
+			} else if reqType == "REQUEST_GET_TIMELINE" {
 				userReq := new(RequestGetTimeline)
-				if err := json.Unmarshal([]byte(req.ReqData), userReq); err != nil {
-					sendError(req.SeqId, recvChan, "Cannot unmarshal "+req.ReqData+": "+err.Error())
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
 					continue
 				}
 
-				go processGetTimeline(userReq, req.SeqId, recvChan, userId)
-			} else if req.Type == "REQUEST_ADD_TO_TIMELINE" {
+				go processGetTimeline(userReq, seqId, recvChan, userInfo.Id)
+			} else if reqType == "REQUEST_ADD_TO_TIMELINE" {
 				userReq := new(RequestAddToTimeline)
-				if err := json.Unmarshal([]byte(req.ReqData), userReq); err != nil {
-					sendError(req.SeqId, recvChan, "Cannot unmarshal "+req.ReqData+": "+err.Error())
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
 					continue
 				}
 
-				go processAddToTimeline(userReq, req.SeqId, recvChan, userId, info["name"])
+				go processAddToTimeline(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
 			} else {
-				sendError(req.SeqId, recvChan, "Invalid request type: "+req.Type)
+				sendError(seqId, recvChan, "Invalid request type: "+reqType)
 				continue
 			}
 		}

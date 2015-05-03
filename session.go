@@ -3,9 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bradfitz/gomemcache/memcache"
 	"math/rand"
 	"time"
+
+	"github.com/bradfitz/gomemcache/memcache"
+)
+
+type (
+	SessionInfo struct {
+		Id   uint64
+		Name string
+	}
 )
 
 var mc = memcache.New("127.0.0.1:11211")
@@ -14,7 +22,7 @@ func initSession() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func getSessionInfo(id string) (result map[string]string, err error) {
+func getSessionInfo(id string) (result *SessionInfo, err error) {
 	var item *memcache.Item
 	item, err = mc.Get("session_" + id)
 	if err != nil {
@@ -23,7 +31,7 @@ func getSessionInfo(id string) (result map[string]string, err error) {
 
 	contents := item.Value
 
-	result = make(map[string]string)
+	result = new(SessionInfo)
 	err = json.Unmarshal(contents, &result)
 	if err != nil {
 		return
@@ -33,7 +41,7 @@ func getSessionInfo(id string) (result map[string]string, err error) {
 }
 
 // Create session with info and return session identifier or error
-func createSession(info map[string]string) (id string, err error) {
+func createSession(info *SessionInfo) (id string, err error) {
 	var contents []byte
 	contents, err = json.Marshal(info)
 	if err != nil {

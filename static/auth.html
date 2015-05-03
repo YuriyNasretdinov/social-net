@@ -8,7 +8,7 @@
 	<link rel="stylesheet" href="/static/main.css" />
 </head>
 <body>
-	<div class="login_info">Logged in as <b>{{.name}}</b> [<a href="/logout">logout</a>]</div>
+	<div class="login_info">Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
 	<div class="onlines" id="online_users">online users</div>
 	<div class="left_menu">
         <div><a href="/timeline/" id="timeline_link">Timeline</a></div>
@@ -45,7 +45,7 @@
         </div>
 	</div>
 	<script>
-        var ourUserId = {{.id}};
+        var ourUserId = {{.Id}};
 		setWebsocketConnection();
 		setUpPage();
 	</script>
