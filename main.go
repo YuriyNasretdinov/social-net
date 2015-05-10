@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"code.google.com/p/go.net/websocket"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -31,6 +31,7 @@ const (
 	REQUEST_SEND_MESSAGE
 	REQUEST_GET_TIMELINE
 	REQUEST_ADD_TO_TIMELINE
+	REQUEST_GET_USERS_LIST
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
@@ -39,6 +40,7 @@ const (
 
 	MAX_MESSAGES_LIMIT = 100
 	MAX_TIMELINE_LIMIT = 100
+	MAX_USERS_LIST_LIMIT = 100
 
 	MSG_TYPE_OUT = "Out"
 	MSG_TYPE_IN  = "In"
@@ -49,7 +51,7 @@ type (
 		Type string
 	}
 
-	UserInfo struct {
+	JSUserInfo struct {
 		Name string
 		Id   string
 	}
@@ -80,6 +82,10 @@ type (
 		Text string
 	}
 
+	RequestGetUsersList struct {
+		Limit uint64
+	}
+
 	BaseReply struct {
 		SeqId int
 		Type  string
@@ -106,6 +112,11 @@ type (
 		Messages []Message
 	}
 
+	ReplyGetUsersList struct {
+		BaseReply
+		Users []JSUserInfo
+	}
+
 	ReplyGetTimeline struct {
 		BaseReply
 		Messages []TimelineMessage
@@ -123,17 +134,17 @@ type (
 
 	EventUserConnected struct {
 		BaseEvent
-		UserInfo
+		JSUserInfo
 	}
 
 	EventUserDisconnected struct {
 		BaseEvent
-		UserInfo
+		JSUserInfo
 	}
 
 	EventOnlineUsersList struct {
 		BaseEvent
-		Users []UserInfo
+		Users []JSUserInfo
 	}
 
 	EventNewMessage struct {
@@ -172,6 +183,9 @@ var (
 	// Authorization
 	loginStmt *sql.Stmt
 
+	// Registration
+	registerStmt *sql.Stmt
+
 	// Messages
 	getMessagesStmt *sql.Stmt
 	sendMessageStmt *sql.Stmt
@@ -181,6 +195,7 @@ var (
 	addToTimelineStmt   *sql.Stmt
 
 	// Users
+	getUsersListStmt *sql.Stmt
 	getFriendsList *sql.Stmt
 
 	eventsFlow = make(chan *ControlEvent, 200)
@@ -306,9 +321,9 @@ func handleUserConnected(listenerMap map[chan interface{}]*SessionInfo, userList
 		return
 	}
 
-	currentUsers := make([]UserInfo, 0, len(listenerMap))
+	currentUsers := make([]JSUserInfo, 0, len(listenerMap))
 	for _, info := range listenerMap {
-		currentUsers = append(currentUsers, UserInfo{Name: info.Name, Id: fmt.Sprint(info.Id)})
+		currentUsers = append(currentUsers, JSUserInfo{Name: info.Name, Id: fmt.Sprint(info.Id)})
 	}
 
 	ouEvent := new(EventOnlineUsersList)
@@ -512,6 +527,47 @@ func processGetMessages(req *RequestGetMessages, seqId int, recvChan chan interf
 	}
 }
 
+func processGetUsersList(req *RequestGetUsersList, seqId int, recvChan chan interface{}) {
+	limit := req.Limit
+	if limit > MAX_USERS_LIST_LIMIT {
+		limit = MAX_USERS_LIST_LIMIT
+	}
+
+	if limit <= 0 {
+		sendError(seqId, recvChan, "Limit must be greater than 0")
+		return
+	}
+
+	rows, err := getUsersListStmt.Query(limit)
+	if err != nil {
+		sendError(seqId, recvChan, "Cannot select users")
+		log.Println(err.Error())
+		return
+	}
+
+	reply := new(ReplyGetUsersList)
+	reply.SeqId = seqId
+	reply.Type = "REPLY_USERS_LIST"
+	reply.Users = make([]JSUserInfo, 0)
+
+	defer rows.Close()
+	for rows.Next() {
+		var user JSUserInfo
+		if err = rows.Scan(&user.Name, &user.Id); err != nil {
+			log.Println(err.Error())
+			return
+		}
+
+		reply.Users = append(reply.Users, user)
+	}
+
+	eventsFlow <- &ControlEvent{
+		evType:   EVENT_USER_REPLY,
+		listener: recvChan,
+		reply:    reply,
+	}
+}
+
 func processGetTimeline(req *RequestGetTimeline, seqId int, recvChan chan interface{}, userId uint64) {
 	dateEnd := req.DateEnd
 
@@ -670,7 +726,7 @@ func processAddToTimeline(req *RequestAddToTimeline, seqId int, recvChan chan in
 	}
 }
 
-func EventsHandler(ws *websocket.Conn) {
+func WebsocketEventsHandler(ws *websocket.Conn) {
 	var userInfo *SessionInfo
 
 	if userInfo = getAuthUserInfo(ws.Request().Cookies()); userInfo == nil {
@@ -746,6 +802,14 @@ func EventsHandler(ws *websocket.Conn) {
 				}
 
 				go processAddToTimeline(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
+			} else if reqType == "REQUEST_GET_USERS_LIST" {
+				userReq := new(RequestGetUsersList)
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
+					continue
+				}
+
+				go processGetUsersList(userReq, seqId, recvChan)
 			} else {
 				sendError(seqId, recvChan, "Invalid request type: "+reqType)
 				continue
@@ -765,6 +829,44 @@ func EventsHandler(ws *websocket.Conn) {
 	}
 }
 
+func RegisterHandler(w http.ResponseWriter, req *http.Request) {
+	serveStatic("static/register.html", w)
+}
+
+func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+
+	name := req.Form.Get("name")
+	email := req.Form.Get("email")
+	userPassword := req.Form.Get("password")
+	userPassword2 := req.Form.Get("password2")
+
+	if name == "" || email == "" || userPassword == "" || userPassword2 == "" {
+		fmt.Fprintf(w, "You must provide values for all the fields")
+		return
+	}
+
+	if userPassword != userPassword2 {
+		fmt.Fprintf(w, "Passwords do not match")
+		return
+	}
+
+	_, err := registerStmt.Exec(email, passwordHash(userPassword), name)
+	if err != nil {
+		if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1062 { // duplicate
+			fmt.Fprintf(w, "The user with specified email already exists")
+			return
+		}
+		log.Println("Could not register user: ", err.Error())
+		fmt.Fprintf(w, "Sorry, internal error occured while trying to register your user")
+		return
+	}
+
+	w.Header().Add("Content-type", "text/html; charset=UTF-8")
+	fmt.Fprintf(w, "Success! <a href='/'>Go to login page</a>")
+	return
+}
+
 func init() {
 	initSession()
 }
@@ -775,6 +877,11 @@ func initStmts(db *sql.DB) {
 	loginStmt, err = db.Prepare("SELECT id, password, name FROM User WHERE email = ?")
 	if err != nil {
 		log.Fatal("Could not prepare email select: " + err.Error())
+	}
+
+	registerStmt, err = db.Prepare("INSERT INTO User(email, password, name) VALUES(?, ?, ?)")
+	if err != nil {
+		log.Fatal("Could not prepare user register stmt: " + err.Error())
 	}
 
 	getMessagesStmt, err = db.Prepare(`SELECT id, message, ts, msg_type
@@ -814,6 +921,11 @@ func initStmts(db *sql.DB) {
 	if err != nil {
 		log.Fatal("Could not prepare get friends list: " + err.Error())
 	}
+
+	getUsersListStmt, err = db.Prepare(`SELECT name, id FROM User ORDER BY id LIMIT ?`)
+	if err != nil {
+		log.Fatal("Could not prepare get users list: " + err.Error())
+	}
 }
 
 func main() {
@@ -826,12 +938,14 @@ func main() {
 
 	initStmts(db)
 
-	http.Handle("/events", websocket.Handler(EventsHandler))
+	http.Handle("/events", websocket.Handler(WebsocketEventsHandler))
 	go EventsDispatcher()
 
 	http.HandleFunc("/static/", StaticServer)
 	http.HandleFunc("/login", LoginHandler)
 	http.HandleFunc("/logout", LogoutHandler)
+	http.HandleFunc("/register", RegisterHandler)
+	http.HandleFunc("/do-register", DoRegisterHandler)
 	http.HandleFunc("/", IndexHandler)
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {

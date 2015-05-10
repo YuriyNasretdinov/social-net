@@ -5,14 +5,17 @@
 	<script type="text/javascript" src="/static/main.js"></script>
 	<script type="text/javascript" src="/static/messages.js"></script>
 	<script type="text/javascript" src="/static/timeline.js"></script>
+	<script type="text/javascript" src="/static/friends.js"></script>
 	<link rel="stylesheet" href="/static/main.css" />
 </head>
 <body>
-	<div class="login_info">Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
+	<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
 	<div class="onlines" id="online_users">online users</div>
 	<div class="left_menu">
         <div><a href="/timeline/" id="timeline_link">Timeline</a></div>
 		<div><a href="/messages/" id="messages_link">Messages</a></div>
+		<div><a href="/friends/" id="friends_link">Friends</a></div>
+		<div><a href="/users_list/" id="users_list_link">Users</a></div>
 	</div>
 	<div class="content">
 		<div class="messages" id="messages">
@@ -42,6 +45,12 @@
             <div class="timeline_texts" id="timeline_texts">
 
             </div>
+        </div>
+		<div class="friends" id="friends">
+            <div class="friend">Friend1</div>
+        </div>
+        <div class="users_list" id="users_list">
+            <div class="users_list_item">User1</div>
         </div>
 	</div>
 	<script>

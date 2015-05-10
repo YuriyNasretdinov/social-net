@@ -8,7 +8,12 @@ var pendingRequests = []
 
 var DEFAULT_MESSAGES_LIMIT = 5
 
-var tabs = ['messages', 'timeline']
+var tabs = ['messages', 'timeline', 'friends', 'users_list']
+var loaders = {}
+
+function updateConnectionStatus() {
+    document.getElementById('status').innerHTML = '<span style="color: ' + (connected ? 'green' : 'red') + ';">•</span>';
+}
 
 function onUserConnect(userInfo) {
 	var userId = userInfo.Id
@@ -103,6 +108,8 @@ function setWebsocketConnection() {
 	websocket = new WebSocket("ws://" + window.location.host + "/events")
 	websocket.onopen = function(evt) {
         connected = true
+        updateConnectionStatus()
+
         for (var i = 0; i < pendingRequests.length; i++) {
             pendingRequests[i]()
         }
@@ -110,6 +117,7 @@ function setWebsocketConnection() {
 	websocket.onclose = function(evt) {
         pendingRequests = []
         connected = false
+        updateConnectionStatus()
 
         console.log("close")
         setTimeout(setWebsocketConnection, 1000)
@@ -148,6 +156,9 @@ function showCurrent() {
         var tab = tabs[i]
         if (location.pathname.indexOf('/' + tab + '/') !== -1) {
             document.getElementById(tabs[i]).style.display = ''
+            if (loaders[tab]) {
+                loaders[tab]()
+            }
             break
         }
     }
@@ -177,6 +188,7 @@ function setUpPage() {
     hideAll()
 	setUpMessagesPage()
     setUpTimelinePage()
+    setUpFriendsPage()
     showCurrent()
 
     showTimeline()
