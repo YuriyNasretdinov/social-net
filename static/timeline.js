@@ -1,6 +1,6 @@
 var DEFAULT_TIMELINE_LIMIT = 10
 
-function setUpTimelinePage() {
+function SetUpTimelinePage() {
     addEv("timeline_link", "click", function(ev) {
         changeLocation("Timeline", "/timeline/")
         return false
@@ -82,7 +82,7 @@ function onNewTimelineEvent(msg) {
     el.insertBefore(createTimelineEl(msg), el.firstChild)
 }
 
-function showTimeline() {
+function ShowTimeline() {
     sendReq(
         "REQUEST_GET_TIMELINE",
         {Limit: DEFAULT_TIMELINE_LIMIT + 1},

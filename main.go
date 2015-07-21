@@ -32,14 +32,16 @@ const (
 	REQUEST_GET_TIMELINE
 	REQUEST_ADD_TO_TIMELINE
 	REQUEST_GET_USERS_LIST
+	REQUEST_ADD_FRIEND
+	REQUEST_CONFIRM_FRIENDSHIP
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
 	REPLY_GENERIC
 	REPLY_GET_TIMELINE
 
-	MAX_MESSAGES_LIMIT = 100
-	MAX_TIMELINE_LIMIT = 100
+	MAX_MESSAGES_LIMIT   = 100
+	MAX_TIMELINE_LIMIT   = 100
 	MAX_USERS_LIST_LIMIT = 100
 
 	MSG_TYPE_OUT = "Out"
@@ -54,6 +56,12 @@ type (
 	JSUserInfo struct {
 		Name string
 		Id   string
+	}
+
+	JSUserListInfo struct {
+		JSUserInfo
+		IsFriend bool
+		FriendshipConfirmed bool
 	}
 
 	BaseRequest struct {
@@ -86,6 +94,14 @@ type (
 		Limit uint64
 	}
 
+	RequestAddFriend struct {
+		FriendId string
+	}
+
+	RequestConfirmFriend struct {
+		FriendId string
+	}
+
 	BaseReply struct {
 		SeqId int
 		Type  string
@@ -114,7 +130,7 @@ type (
 
 	ReplyGetUsersList struct {
 		BaseReply
-		Users []JSUserInfo
+		Users []JSUserListInfo
 	}
 
 	ReplyGetTimeline struct {
@@ -196,7 +212,11 @@ var (
 
 	// Users
 	getUsersListStmt *sql.Stmt
-	getFriendsList *sql.Stmt
+	getFriendsList   *sql.Stmt
+
+	// Friends
+	addFriendsRequestStmt *sql.Stmt
+	confirmFriendshipStmt *sql.Stmt
 
 	eventsFlow = make(chan *ControlEvent, 200)
 )
@@ -527,7 +547,7 @@ func processGetMessages(req *RequestGetMessages, seqId int, recvChan chan interf
 	}
 }
 
-func processGetUsersList(req *RequestGetUsersList, seqId int, recvChan chan interface{}) {
+func processGetUsersList(req *RequestGetUsersList, seqId int, recvChan chan interface{}, userId uint64) {
 	limit := req.Limit
 	if limit > MAX_USERS_LIST_LIMIT {
 		limit = MAX_USERS_LIST_LIMIT
@@ -538,7 +558,7 @@ func processGetUsersList(req *RequestGetUsersList, seqId int, recvChan chan inte
 		return
 	}
 
-	rows, err := getUsersListStmt.Query(limit)
+	rows, err := getUsersListStmt.Query(userId, limit)
 	if err != nil {
 		sendError(seqId, recvChan, "Cannot select users")
 		log.Println(err.Error())
@@ -548,15 +568,21 @@ func processGetUsersList(req *RequestGetUsersList, seqId int, recvChan chan inte
 	reply := new(ReplyGetUsersList)
 	reply.SeqId = seqId
 	reply.Type = "REPLY_USERS_LIST"
-	reply.Users = make([]JSUserInfo, 0)
+	reply.Users = make([]JSUserListInfo, 0)
 
 	defer rows.Close()
 	for rows.Next() {
-		var user JSUserInfo
-		if err = rows.Scan(&user.Name, &user.Id); err != nil {
+		var user JSUserListInfo
+		var isFriendInt int
+		var friendshipConfirmed sql.NullInt64
+
+		if err = rows.Scan(&user.Name, &user.Id, &isFriendInt, &friendshipConfirmed); err != nil {
 			log.Println(err.Error())
 			return
 		}
+
+		user.IsFriend = (isFriendInt > 0)
+		user.FriendshipConfirmed = (friendshipConfirmed.Valid && friendshipConfirmed.Int64 > 0)
 
 		reply.Users = append(reply.Users, user)
 	}
@@ -726,6 +752,77 @@ func processAddToTimeline(req *RequestAddToTimeline, seqId int, recvChan chan in
 	}
 }
 
+func processRequestAddFriend(req *RequestAddFriend, seqId int, recvChan chan interface{}, userId uint64, userName string) {
+	var (
+		err error
+		friendId uint64
+	)
+
+	if friendId, err = strconv.ParseUint(req.FriendId, 10, 64); err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Friend id is not numeric")
+		return
+	}
+
+	if friendId == userId {
+		sendError(seqId, recvChan, "You cannot add yourself as a friend")
+		return
+	}
+
+	if _, err = addFriendsRequestStmt.Exec(userId, friendId, 1); err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Could not add user as a friend")
+		return
+	}
+
+	if _, err = addFriendsRequestStmt.Exec(friendId, userId, 0); err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Could not add user as a friend")
+		return
+	}
+
+	reply := new(ReplyGeneric)
+	reply.SeqId = seqId
+	reply.Type = "REPLY_GENERIC"
+	reply.Success = true
+
+	eventsFlow <- &ControlEvent{
+		evType:   EVENT_USER_REPLY,
+		listener: recvChan,
+		reply:    reply,
+	}
+}
+
+func processConfirmFriendship(req *RequestConfirmFriend, seqId int, recvChan chan interface{}, userId uint64, userName string) {
+	var (
+		err error
+		friendId uint64
+	)
+
+	if friendId, err = strconv.ParseUint(req.FriendId, 10, 64); err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Friend id is not numeric")
+		return
+	}
+
+	if _, err = confirmFriendshipStmt.Exec(userId, friendId); err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Could not confirm friendship")
+		return
+	}
+
+	reply := new(ReplyGeneric)
+	reply.SeqId = seqId
+	reply.Type = "REPLY_GENERIC"
+	reply.Success = true
+
+	eventsFlow <- &ControlEvent{
+		evType:   EVENT_USER_REPLY,
+		listener: recvChan,
+		reply:    reply,
+	}
+}
+
 func WebsocketEventsHandler(ws *websocket.Conn) {
 	var userInfo *SessionInfo
 
@@ -809,7 +906,23 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 					continue
 				}
 
-				go processGetUsersList(userReq, seqId, recvChan)
+				go processGetUsersList(userReq, seqId, recvChan, userInfo.Id)
+			} else if reqType == "REQUEST_ADD_FRIEND" {
+				userReq := new(RequestAddFriend)
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
+					continue
+				}
+
+				go processRequestAddFriend(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
+			} else if reqType == "REQUEST_CONFIRM_FRIENDSHIP" {
+				userReq := new(RequestConfirmFriend)
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
+					continue
+				}
+
+				go processConfirmFriendship(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
 			} else {
 				sendError(seqId, recvChan, "Invalid request type: "+reqType)
 				continue
@@ -907,6 +1020,20 @@ func initStmts(db *sql.DB) {
 		log.Fatal("Could not prepare add to timeline: " + err.Error())
 	}
 
+	addFriendsRequestStmt, err = db.Prepare(`INSERT INTO Friend
+		(user_id, friend_user_id, request_accepted)
+		VALUES(?, ?, ?)`)
+	if err != nil {
+		log.Fatal("Could not prepare add friends request: " + err.Error())
+	}
+
+	confirmFriendshipStmt, err = db.Prepare(`UPDATE Friend
+		SET request_accepted = 1
+		WHERE user_id = ? AND friend_user_id = ?`)
+	if err != nil {
+		log.Fatal("Could not prepare add friends request: " + err.Error())
+	}
+
 	getFromTimelineStmt, err = db.Prepare(`SELECT t.id, t.source_user_id, u.name, t.message, t.ts
 		FROM Timeline t
 		LEFT JOIN User u ON u.id = t.source_user_id
@@ -922,7 +1049,12 @@ func initStmts(db *sql.DB) {
 		log.Fatal("Could not prepare get friends list: " + err.Error())
 	}
 
-	getUsersListStmt, err = db.Prepare(`SELECT name, id FROM User ORDER BY id LIMIT ?`)
+	getUsersListStmt, err = db.Prepare(`SELECT
+			u.name, u.id, IF(f.id IS NOT NULL, 1, 0) AS is_friend, f.request_accepted
+		FROM User AS u
+		LEFT JOIN Friend AS f ON u.id = f.friend_user_id AND f.user_id = ?
+		ORDER BY id
+		LIMIT ?`)
 	if err != nil {
 		log.Fatal("Could not prepare get users list: " + err.Error())
 	}

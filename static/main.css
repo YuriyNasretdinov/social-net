@@ -104,3 +104,14 @@
 .friend {
 	border-bottom: 1px gray solid;
 }
+
+.error_text {
+	position: fixed;
+	top: 10px;
+	text-align: center;
+	color: red;
+	z-index: 1;
+	background: white;
+	border: 1px red solid;
+	padding: 3px;
+}

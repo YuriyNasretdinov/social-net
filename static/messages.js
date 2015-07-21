@@ -94,7 +94,7 @@ function sendMessage(msgText) {
 	})
 }
 
-function setUpMessagesPage() {
+function SetUpMessagesPage() {
 	addEv("messages_link", "click", function(ev) {
 		changeLocation("Messages", "/messages/")
 		return false

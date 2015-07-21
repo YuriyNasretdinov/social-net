@@ -55,7 +55,11 @@ function onMessage(evt) {
 			console.log(reply)
 		} else {
 			if (reply.Type == 'REPLY_ERROR') {
-				console.log(reply.Message)
+				var el = document.getElementById('error_text')
+				el.style.display = ''
+				el.innerHTML = ''
+				el.appendChild(document.createTextNode(reply.Message))
+				setTimeout(function() { el.style.display = 'none' }, 2000)
 			} else {
 				rcvCallbacks[reply.SeqId](reply)
 			}
@@ -127,11 +131,18 @@ function setWebsocketConnection() {
 }
 
 function addEv(id, evName, func) {
-	var el = document.getElementById(id)
-	if (!el) {
-		console.log("el not found: ", id)
-		return false
+	var el
+
+	if (typeof id == "string") {
+		el = document.getElementById(id)
+		if (!el) {
+			console.log("el not found: ", id)
+			return false
+		}
+	} else {
+		el = id
 	}
+
 	el.addEventListener(
 		evName,
 		function (ev) {
@@ -151,7 +162,7 @@ function hideAll() {
     }
 }
 
-function showCurrent() {
+function ShowCurrent() {
     for (var i = 0; i < tabs.length; i++) {
         var tab = tabs[i]
         if (location.pathname.indexOf('/' + tab + '/') !== -1) {
@@ -167,7 +178,7 @@ function showCurrent() {
 function changeLocation(title, url) {
     history.replaceState(null, title, url)
     hideAll()
-    showCurrent()
+    ShowCurrent()
 }
 
 function createTsEl(ts) {
@@ -186,10 +197,10 @@ function createTsEl(ts) {
 
 function setUpPage() {
     hideAll()
-	setUpMessagesPage()
-    setUpTimelinePage()
-    setUpFriendsPage()
-    showCurrent()
+	SetUpMessagesPage()
+    SetUpTimelinePage()
+    SetUpFriendsPage()
+    ShowCurrent()
 
-    showTimeline()
+    ShowTimeline()
 }
