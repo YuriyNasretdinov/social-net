@@ -14,8 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"flag"
+	"io/ioutil"
 
 	"code.google.com/p/go.net/websocket"
+	"github.com/BurntSushi/toml"
 	"github.com/go-sql-driver/mysql"
 )
 
@@ -49,6 +52,12 @@ const (
 )
 
 type (
+	Config struct {
+		Mysql    string
+		Memcache string
+		Bind     string
+	}
+
 	BaseEvent struct {
 		Type string
 	}
@@ -60,7 +69,7 @@ type (
 
 	JSUserListInfo struct {
 		JSUserInfo
-		IsFriend bool
+		IsFriend            bool
 		FriendshipConfirmed bool
 	}
 
@@ -196,6 +205,8 @@ type (
 )
 
 var (
+	conf Config
+
 	// Authorization
 	loginStmt *sql.Stmt
 
@@ -273,6 +284,10 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	sessionId, err := createSession(&SessionInfo{Id: id, Name: name})
+	if err != nil {
+		w.Write([]byte("Internal error: could not create session"))
+		return
+	}
 
 	cookie := &http.Cookie{
 		Name:    "id",
@@ -754,7 +769,7 @@ func processAddToTimeline(req *RequestAddToTimeline, seqId int, recvChan chan in
 
 func processRequestAddFriend(req *RequestAddFriend, seqId int, recvChan chan interface{}, userId uint64, userName string) {
 	var (
-		err error
+		err      error
 		friendId uint64
 	)
 
@@ -795,7 +810,7 @@ func processRequestAddFriend(req *RequestAddFriend, seqId int, recvChan chan int
 
 func processConfirmFriendship(req *RequestConfirmFriend, seqId int, recvChan chan interface{}, userId uint64, userName string) {
 	var (
-		err error
+		err      error
 		friendId uint64
 	)
 
@@ -980,95 +995,94 @@ func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func init() {
-	initSession()
+func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
+	res, err := db.Prepare(stmt)
+	if err != nil {
+		log.Fatal("Could not prepare `" + stmt + "`: " + err.Error())
+	}
+
+	return res
 }
 
+//language=MySQL
 func initStmts(db *sql.DB) {
-	var err error
+	loginStmt = prepareStmt(db, "SELECT id, password, name FROM User WHERE email = ?")
+	registerStmt = prepareStmt(db, "INSERT INTO User(email, password, name) VALUES(?, ?, ?)")
+	getFriendsList = prepareStmt(db, `SELECT id FROM User`)
 
-	loginStmt, err = db.Prepare("SELECT id, password, name FROM User WHERE email = ?")
-	if err != nil {
-		log.Fatal("Could not prepare email select: " + err.Error())
-	}
-
-	registerStmt, err = db.Prepare("INSERT INTO User(email, password, name) VALUES(?, ?, ?)")
-	if err != nil {
-		log.Fatal("Could not prepare user register stmt: " + err.Error())
-	}
-
-	getMessagesStmt, err = db.Prepare(`SELECT id, message, ts, msg_type
+	getMessagesStmt = prepareStmt(db, `SELECT id, message, ts, msg_type
 		FROM Messages
 		WHERE user_id = ? AND user_id_to = ? AND ts < ?
 		ORDER BY ts DESC
 		LIMIT ?`)
-	if err != nil {
-		log.Fatal("Could not prepare messages select: " + err.Error())
-	}
 
-	sendMessageStmt, err = db.Prepare(`INSERT INTO Messages
+	sendMessageStmt = prepareStmt(db, `INSERT INTO Messages
 		(user_id, user_id_to, msg_type, message, ts)
 		VALUES(?, ?, ?, ?, ?)`)
-	if err != nil {
-		log.Fatal("Could not prepare messages select: " + err.Error())
-	}
 
-	addToTimelineStmt, err = db.Prepare(`INSERT INTO Timeline
+	addToTimelineStmt = prepareStmt(db, `INSERT INTO Timeline
 		(user_id, source_user_id, message, ts)
 		VALUES(?, ?, ?, ?)`)
-	if err != nil {
-		log.Fatal("Could not prepare add to timeline: " + err.Error())
-	}
 
-	addFriendsRequestStmt, err = db.Prepare(`INSERT INTO Friend
+	addFriendsRequestStmt = prepareStmt(db, `INSERT INTO Friend
 		(user_id, friend_user_id, request_accepted)
 		VALUES(?, ?, ?)`)
-	if err != nil {
-		log.Fatal("Could not prepare add friends request: " + err.Error())
-	}
 
-	confirmFriendshipStmt, err = db.Prepare(`UPDATE Friend
+	confirmFriendshipStmt = prepareStmt(db, `UPDATE Friend
 		SET request_accepted = 1
 		WHERE user_id = ? AND friend_user_id = ?`)
-	if err != nil {
-		log.Fatal("Could not prepare add friends request: " + err.Error())
-	}
 
-	getFromTimelineStmt, err = db.Prepare(`SELECT t.id, t.source_user_id, u.name, t.message, t.ts
+	getFromTimelineStmt = prepareStmt(db, `SELECT t.id, t.source_user_id, u.name, t.message, t.ts
 		FROM Timeline t
 		LEFT JOIN User u ON u.id = t.source_user_id
 		WHERE t.user_id = ? AND t.ts < ?
 		ORDER BY t.ts DESC
 		LIMIT ?`)
-	if err != nil {
-		log.Fatal("Could not prepare get from timeline: " + err.Error())
-	}
 
-	getFriendsList, err = db.Prepare(`SELECT id FROM User`)
-	if err != nil {
-		log.Fatal("Could not prepare get friends list: " + err.Error())
-	}
-
-	getUsersListStmt, err = db.Prepare(`SELECT
+	getUsersListStmt = prepareStmt(db, `SELECT
 			u.name, u.id, IF(f.id IS NOT NULL, 1, 0) AS is_friend, f.request_accepted
 		FROM User AS u
 		LEFT JOIN Friend AS f ON u.id = f.friend_user_id AND f.user_id = ?
 		ORDER BY id
 		LIMIT ?`)
+}
+
+func parseConfig(path string) {
+	fp, err := os.Open(path)
 	if err != nil {
-		log.Fatal("Could not prepare get users list: " + err.Error())
+		log.Fatal("Could not open config " + err.Error())
+	}
+
+	defer fp.Close()
+
+	contents, err := ioutil.ReadAll(fp)
+	if err != nil {
+		log.Fatal("Could not read config: " + err.Error())
+	}
+
+	if _, err = toml.Decode(string(contents), &conf); err != nil {
+		log.Fatal("Could not parse config: " + err.Error())
 	}
 }
 
 func main() {
-	var err error
+	var (
+		err        error
+		configPath string
+	)
 
-	db, err := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/social")
+	flag.StringVar(&configPath, "c", "config.toml", "Path to application config")
+	flag.Parse()
+
+	parseConfig(configPath)
+
+	db, err := sql.Open("mysql", conf.Mysql)
 	if err != nil {
 		log.Fatal("Could not connect to db: " + err.Error())
 	}
 
 	initStmts(db)
+	initSession()
 
 	http.Handle("/events", websocket.Handler(WebsocketEventsHandler))
 	go EventsDispatcher()
@@ -1079,8 +1093,6 @@ func main() {
 	http.HandleFunc("/register", RegisterHandler)
 	http.HandleFunc("/do-register", DoRegisterHandler)
 	http.HandleFunc("/", IndexHandler)
-	err = http.ListenAndServe(":8080", nil)
-	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
-	}
+
+	log.Fatal("ListenAndServe: ", http.ListenAndServe(conf.Bind, nil))
 }

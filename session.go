@@ -16,10 +16,11 @@ type (
 	}
 )
 
-var mc = memcache.New("127.0.0.1:11211")
+var mc *memcache.Client
 
 func initSession() {
 	rand.Seed(time.Now().UnixNano())
+	mc = memcache.New(conf.Memcache)
 }
 
 func getSessionInfo(id string) (result *SessionInfo, err error) {
