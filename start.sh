@@ -1,10 +1,13 @@
 #!/bin/sh -e -x
-trap 'ssh -t freebsd "su -"' SIGINT
+VMNAME="FreeBSD"
+HOST="socialsrv"
 
-if ! ping -c 1 -t 1 192.168.56.2; then
-	VBoxHeadless --startvm FreeBSD &
+trap "VBoxManage controlvm $VMNAME acpipowerbutton" SIGINT
+
+if ! ping -c 1 -t 1 $HOST; then
+	VBoxHeadless --startvm $VMNAME &
 	sleep 60
-	ssh freebsd uptime
+	ssh $HOST uptime
 fi
 
 go build
