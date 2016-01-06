@@ -6,20 +6,21 @@ import (
 	"crypto/sha1"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"flag"
-	"io/ioutil"
 
-	"code.google.com/p/go.net/websocket"
+	"errors"
 	"github.com/BurntSushi/toml"
 	"github.com/go-sql-driver/mysql"
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -254,6 +255,36 @@ func StaticServer(w http.ResponseWriter, req *http.Request) {
 	serveStatic(req.URL.Path[len("/"):], w)
 }
 
+func loginUser(email, userPassword string) (sessionId string, err error) {
+	var id uint64
+	var password, name string
+
+	err = loginStmt.QueryRow(email).Scan(&id, &password, &name)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Println("Db error: " + err.Error())
+			err = errors.New("Sorry, an internal DB error occured")
+		} else {
+			err = errors.New("You are not registered, sorry")
+		}
+		return
+	}
+
+	if passwordHash(userPassword) != password {
+		err = errors.New("Incorrect password")
+		return
+	}
+
+	sessionId, err = createSession(&SessionInfo{Id: id, Name: name})
+	if err != nil {
+		log.Println("Could not create session: ", err.Error())
+		err = errors.New("Internal error: could not create session")
+		return
+	}
+
+	return
+}
+
 func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	email := req.Form.Get("email")
@@ -264,28 +295,8 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var id uint64
-	var password, name string
-
-	err := loginStmt.QueryRow(email).Scan(&id, &password, &name)
+	sessionId, err := loginUser(email, userPassword)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			w.Write([]byte("You are not registered, sorry"))
-		} else {
-			w.Write([]byte("Error occured, sorry"))
-			log.Println("Db error: " + err.Error())
-		}
-		return
-	}
-
-	if passwordHash(userPassword) != password {
-		w.Write([]byte("Incorrect password"))
-		return
-	}
-
-	sessionId, err := createSession(&SessionInfo{Id: id, Name: name})
-	if err != nil {
-		w.Write([]byte("Internal error: could not create session"))
 		return
 	}
 
@@ -493,11 +504,10 @@ func EventsDispatcher() {
 				continue
 			}
 
-			if len(ev.listener) >= cap(ev.listener) {
-				continue
+			select {
+			case ev.listener <- ev.reply:
+			default:
 			}
-
-			ev.listener <- ev.reply
 		}
 	}
 }
@@ -548,6 +558,7 @@ func processGetMessages(req *RequestGetMessages, seqId int, recvChan chan interf
 	for rows.Next() {
 		var msg Message
 		if err = rows.Scan(&msg.Id, &msg.Text, &msg.Ts, &msg.MsgType); err != nil {
+			sendError(seqId, recvChan, "Cannot select messages")
 			log.Println(err.Error())
 			return
 		}
@@ -857,6 +868,7 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 
 	go func() {
 		defer func() {
+			log.Println("User ", userInfo.Name, " disconnected")
 			ws.Close()
 			recvChan <- nil
 		}()
@@ -961,6 +973,20 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 	serveStatic("static/register.html", w)
 }
 
+func registerUser(email, userPassword, name string) (err error, duplicate bool) {
+	_, err = registerStmt.Exec(email, passwordHash(userPassword), name)
+	if err != nil {
+		if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1062 { // duplicate
+			err = nil
+			duplicate = true
+			return
+		}
+		log.Println("Could not register user: ", err.Error())
+	}
+
+	return
+}
+
 func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 
@@ -979,19 +1005,16 @@ func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	_, err := registerStmt.Exec(email, passwordHash(userPassword), name)
+	err, dup := registerUser(email, userPassword, name)
 	if err != nil {
-		if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1062 { // duplicate
-			fmt.Fprintf(w, "The user with specified email already exists")
-			return
-		}
-		log.Println("Could not register user: ", err.Error())
 		fmt.Fprintf(w, "Sorry, internal error occured while trying to register your user")
-		return
+	} else if dup {
+		fmt.Fprintf(w, "Sorry, user already exists")
+	} else {
+		w.Header().Add("Content-type", "text/html; charset=UTF-8")
+		fmt.Fprintf(w, "Success! <a href='/'>Go to login page</a>")
 	}
 
-	w.Header().Add("Content-type", "text/html; charset=UTF-8")
-	fmt.Fprintf(w, "Success! <a href='/'>Go to login page</a>")
 	return
 }
 
@@ -1006,43 +1029,43 @@ func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
 
 //language=MySQL
 func initStmts(db *sql.DB) {
-	loginStmt = prepareStmt(db, "SELECT id, password, name FROM User WHERE email = ?")
-	registerStmt = prepareStmt(db, "INSERT INTO User(email, password, name) VALUES(?, ?, ?)")
-	getFriendsList = prepareStmt(db, `SELECT id FROM User`)
+	loginStmt = prepareStmt(db, "SELECT id, password, name FROM social.User WHERE email = ?")
+	registerStmt = prepareStmt(db, "INSERT INTO social.User(email, password, name) VALUES(?, ?, ?)")
+	getFriendsList = prepareStmt(db, `SELECT id FROM social.User`)
 
 	getMessagesStmt = prepareStmt(db, `SELECT id, message, ts, msg_type
-		FROM Messages
+		FROM social.Messages
 		WHERE user_id = ? AND user_id_to = ? AND ts < ?
 		ORDER BY ts DESC
 		LIMIT ?`)
 
-	sendMessageStmt = prepareStmt(db, `INSERT INTO Messages
+	sendMessageStmt = prepareStmt(db, `INSERT INTO social.Messages
 		(user_id, user_id_to, msg_type, message, ts)
 		VALUES(?, ?, ?, ?, ?)`)
 
-	addToTimelineStmt = prepareStmt(db, `INSERT INTO Timeline
+	addToTimelineStmt = prepareStmt(db, `INSERT INTO social.Timeline
 		(user_id, source_user_id, message, ts)
 		VALUES(?, ?, ?, ?)`)
 
-	addFriendsRequestStmt = prepareStmt(db, `INSERT INTO Friend
+	addFriendsRequestStmt = prepareStmt(db, `INSERT INTO social.Friend
 		(user_id, friend_user_id, request_accepted)
 		VALUES(?, ?, ?)`)
 
-	confirmFriendshipStmt = prepareStmt(db, `UPDATE Friend
+	confirmFriendshipStmt = prepareStmt(db, `UPDATE social.Friend
 		SET request_accepted = 1
 		WHERE user_id = ? AND friend_user_id = ?`)
 
 	getFromTimelineStmt = prepareStmt(db, `SELECT t.id, t.source_user_id, u.name, t.message, t.ts
-		FROM Timeline t
-		LEFT JOIN User u ON u.id = t.source_user_id
+		FROM social.Timeline t
+		LEFT JOIN social.User u ON u.id = t.source_user_id
 		WHERE t.user_id = ? AND t.ts < ?
 		ORDER BY t.ts DESC
 		LIMIT ?`)
 
 	getUsersListStmt = prepareStmt(db, `SELECT
 			u.name, u.id, IF(f.id IS NOT NULL, 1, 0) AS is_friend, f.request_accepted
-		FROM User AS u
-		LEFT JOIN Friend AS f ON u.id = f.friend_user_id AND f.user_id = ?
+		FROM social.User AS u
+		LEFT JOIN social.Friend AS f ON u.id = f.friend_user_id AND f.user_id = ?
 		ORDER BY id
 		LIMIT ?`)
 }
@@ -1065,13 +1088,19 @@ func parseConfig(path string) {
 	}
 }
 
+func listen(addr string) {
+	log.Fatal("ListenAndServe: ", http.ListenAndServe(addr, nil))
+}
+
 func main() {
 	var (
 		err        error
 		configPath string
+		testMode   bool
 	)
 
 	flag.StringVar(&configPath, "c", "config.toml", "Path to application config")
+	flag.BoolVar(&testMode, "test-mode", false, "Do self-testing")
 	flag.Parse()
 
 	parseConfig(configPath)
@@ -1094,5 +1123,15 @@ func main() {
 	http.HandleFunc("/do-register", DoRegisterHandler)
 	http.HandleFunc("/", IndexHandler)
 
-	log.Fatal("ListenAndServe: ", http.ListenAndServe(conf.Bind, nil))
+	go listen(conf.Bind)
+
+	if testMode {
+		err := runTest(conf.Bind)
+		if err != nil {
+			log.Printf("Test failed: %s", err.Error())
+		}
+	} else {
+		var nilCh chan bool
+		<-nilCh
+	}
 }

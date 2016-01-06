@@ -1,5 +1,5 @@
 <?php
-$pp = popen($_SERVER['HOME'] . '/unrealsync/notify-darwin ' . __DIR__, 'r');
+$pp = popen(__DIR__ . '/notify-' . strtolower(PHP_OS) . ' ' . __DIR__, 'r');
 $cmd = "exec ./social-net";
 $ph = proc_open($cmd, [STDIN, STDOUT, STDERR], $pipes);;
 register_shutdown_function(function() { global $pp, $ph; proc_terminate($ph); pclose($pp); });
@@ -15,6 +15,7 @@ while (true) {
 	if ($retval == 0) {
 		echo "Success!\n";
 		proc_terminate($ph);
+        proc_close($ph);
 		echo $cmd . "\n";
 		$ph = proc_open($cmd, [STDIN, STDOUT, STDERR], $pipes);
 	} else {

@@ -1,13 +1,9 @@
 #!/bin/sh -e -x
-VMNAME="FreeBSD"
-HOST="socialsrv"
+trap "mysql.server stop; killall memcached" SIGINT
 
-trap "VBoxManage controlvm $VMNAME acpipowerbutton" SIGINT
-
-if ! ping -c 1 -t 1 $HOST; then
-	VBoxHeadless --startvm $VMNAME &
-	sleep 60
-	ssh $HOST uptime
+if ! echo version | nc localhost 11211; then
+    mysql.server start
+    memcached -d
 fi
 
 go build
