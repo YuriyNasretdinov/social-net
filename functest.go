@@ -10,6 +10,8 @@ import (
 )
 
 const TEST_PASSWORD = "test"
+const TEST_MSG_TEXT = "Hello from test"
+const TEST_USER_ID = 1
 
 func setFlag(fl chan bool) {
 	select {
@@ -74,8 +76,8 @@ func responseReaderThread(c *websocket.Conn, online, connected, newmsg chan bool
 			case "EVENT_USER_CONNECTED":
 				setFlag(connected)
 			case "EVENT_NEW_MESSAGE":
-				if value["UserFrom"].(string) != "1" {
-					log.Fatalf("Improper event new message, expected UserFrom=1: %+v", value)
+				if value["UserFrom"].(string) != fmt.Sprint(TEST_USER_ID) {
+					log.Fatalf("Improper event new message, expected UserFrom=%d: %+v", TEST_USER_ID, value)
 				}
 				setFlag(newmsg)
 			default:
@@ -113,37 +115,76 @@ func (p *TestConn) callMethod(msg, respMsg string, req, resp interface{}) error 
 	}
 	json.Unmarshal(data, resp)
 
+	log.Printf("Reply to %s: %+v", msg, resp)
+
 	p.seqId++
 	return nil
 }
 
-func testGetMessages(p *TestConn) error {
+func testGetMessages(p *TestConn) {
 	var reply ReplyGetMessages
 
-	err := p.callMethod("REQUEST_GET_MESSAGES", "REPLY_MESSAGES_LIST", &RequestGetMessages{Limit: 10}, &reply)
+	log.Printf("Testing get messages")
+
+	err := p.callMethod("REQUEST_GET_MESSAGES", "REPLY_MESSAGES_LIST", &RequestGetMessages{Limit: 10, UserTo: TEST_USER_ID}, &reply)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
-	fmt.Printf("Reply to REQUEST_GET_MESSAGES: %+v\n", reply)
-	return nil
+	if len(reply.Messages) != 1 {
+		log.Panicf("Received unexpected number of messages (%d) instead of 1", len(reply.Messages))
+	}
+
+	msg := reply.Messages[0]
+
+	if msg.UserFrom != fmt.Sprint(TEST_USER_ID) {
+		log.Panicf("Unexpected user from: requested user id=%d, got %s", TEST_USER_ID, msg.UserFrom)
+	}
+
+	if msg.Text != TEST_MSG_TEXT {
+		log.Panicf("Unexpected msg text: expected '%s', got '%s'", TEST_MSG_TEXT, msg.Text)
+	}
+
+	if msg.MsgType != MSG_TYPE_OUT {
+		log.Panicf("Unexpected msg type: expected '%s', got '%s'", MSG_TYPE_OUT, msg.MsgType)
+	}
 }
 
 func testSendMessage(p *TestConn) error {
 	var reply ReplyGeneric
-	err := p.callMethod("REQUEST_SEND_MESSAGE", "REPLY_GENERIC", &RequestSendMessage{UserTo: 1, Text: "Hello from test"}, &reply)
+	log.Printf("Testing send message")
+
+	err := p.callMethod("REQUEST_SEND_MESSAGE", "REPLY_GENERIC", &RequestSendMessage{UserTo: TEST_USER_ID, Text: TEST_MSG_TEXT}, &reply)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
-	fmt.Printf("Reply to REQUEST_SEND_MESSAGE: %+v\n", reply)
 	return nil
 }
 
-func runTest(addr string) error {
+func checkFlag(fl chan bool, name string) {
+	if !haveFlag(fl) {
+		panic("Did not receive " + name)
+	}
+}
+
+func runTest(addr string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch v := r.(type) {
+			case error:
+				err = v
+			case string:
+				err = errors.New(v)
+			default:
+				panic(r)
+			}
+		}
+	}()
+
 	c, err := setupAndGetConnection(addr)
 	if err != nil {
-		return err
+		return
 	}
 
 	online := make(chan bool, 1)
@@ -154,27 +195,14 @@ func runTest(addr string) error {
 	go responseReaderThread(c, online, connected, newmsg, respChan)
 	p := &TestConn{c: c, respChan: respChan, seqId: 0}
 
-	if err = testGetMessages(p); err != nil {
-		return err
-	}
-
-	if !haveFlag(online) {
-		return errors.New("Did not receive online users list")
-	}
-
-	if !haveFlag(connected) {
-		return errors.New("Did not receive user connected")
-	}
-
-	if err = testSendMessage(p); err != nil {
-		return err
-	}
+	testSendMessage(p)
+	testGetMessages(p)
 
 	time.Sleep(time.Millisecond * 100)
 
-	if !haveFlag(newmsg) {
-		return errors.New("Did not receive user connected")
-	}
+	checkFlag(online, "online users list")
+	checkFlag(connected, "user connected")
+	checkFlag(newmsg, "new message event")
 
 	return nil
 }

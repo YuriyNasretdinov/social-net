@@ -452,27 +452,28 @@ func handleNewMessage(listenerMap map[chan interface{}]*SessionInfo, userListene
 
 	if userListeners[sourceEvent.UserFrom] != nil {
 		for listener := range userListeners[sourceEvent.UserFrom] {
-			if len(listener) >= cap(listener) {
-				continue
-			}
 			fromEv := new(EventNewMessage)
 			*fromEv = *event
 			fromEv.UserFrom = fmt.Sprint(sourceEvent.UserTo)
 			fromEv.MsgType = MSG_TYPE_OUT
-			listener <- fromEv
+			select {
+			case listener <- fromEv:
+			default:
+			}
+
 		}
 	}
 
 	if userListeners[sourceEvent.UserTo] != nil {
 		for listener := range userListeners[sourceEvent.UserTo] {
-			if len(listener) >= cap(listener) {
-				continue
-			}
 			toEv := new(EventNewMessage)
 			*toEv = *event
-			toEv.UserFrom = fmt.Sprint(sourceEvent.UserTo)
+			toEv.UserFrom = fmt.Sprint(sourceEvent.UserFrom)
 			toEv.MsgType = MSG_TYPE_IN
-			listener <- toEv
+			select {
+			case listener <- toEv:
+			default:
+			}
 		}
 	}
 }
@@ -574,7 +575,7 @@ func processGetMessages(req *RequestGetMessages, seqId int, recvChan chan interf
 			log.Println(err.Error())
 			return
 		}
-
+		msg.UserFrom = fmt.Sprint(req.UserTo)
 		reply.Messages = append(reply.Messages, msg)
 	}
 
@@ -1194,8 +1195,10 @@ func main() {
 
 	if testMode {
 		err := runTest(conf.Bind)
-		if err != nil {
-			log.Printf("Test failed: %s", err.Error())
+		if err == nil {
+			log.Print("SUCCESS!")
+		} else {
+			log.Fatalf("FAILURE: %s", err.Error())
 		}
 	} else {
 		var nilCh chan bool

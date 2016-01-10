@@ -7,21 +7,41 @@ function loadMessageUsers() {
 		{Limit: DEFAULT_MESSAGES_LIMIT},
 		function (reply) {
 			redrawMessageUsers(reply.Users)
+			var location_parts = ("" + location.pathname).split(/\//g)
+			if (location_parts[2]) {
+				msgCurUser = +location_parts[2]
+				showMessages(msgCurUser)
+			}
 		}
 	)
 }
 
 function redrawMessageUsers(users) {
-	var msgUsers = []
-	for (var userId in users) {
-		var userInfo = users[userId]
+	var msgUsers = [], shownUsers = {}
+	var userInfo, i, el
+	for (i = 0; i < users.length; i++) {
+		userInfo = users[i]
+		shownUsers[userInfo.Id] = true
 		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
 	}
+
+	for (var userId in allUsers) {
+		if (shownUsers[userId] || userId == ourUserId) continue
+		userInfo = allUsers[userId]
+		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
+	}
+
 	document.getElementById("users").innerHTML = msgUsers.join(" ")
 
+	el = document.getElementById('messages' + msgCurUser)
+	if (el) {
+		el.className = "user user_current"
+	}
+
 	var els = document.getElementsByClassName("user")
-	for (var i = 0; i < els.length; i++) {
-		addEv(els[i].id, 'click', function(ev) {
+	for (i = 0; i < els.length; i++) {
+		el = els[i]
+		addEv(el.id, 'click', function(ev) {
 			showMessages(ev.target.id.replace('messages', ''))
 		})
 	}
@@ -106,8 +126,19 @@ function onNewMessage(msg) {
 }
 
 function showMessages(id) {
+	var prev_el = document.getElementById('messages' + msgCurUser)
+	if (prev_el) {
+		prev_el.className = "user"
+	}
+
+	var el = document.getElementById('messages' + id)
+	el.className = "user user_current"
+
 	id = +id
 	msgCurUser = id
+
+	history.replaceState(null, "Messages", "/messages/" + msgCurUser)
+
 	sendReq(
 		"REQUEST_GET_MESSAGES",
 		{UserTo: id, Limit: DEFAULT_MESSAGES_LIMIT + 1},

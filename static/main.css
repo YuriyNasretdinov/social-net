@@ -18,7 +18,7 @@
 
 .left_menu {
 	position: fixed;
-	width: 190px;
+	width: 100px;
 	border-right: 1px black solid;
 	padding: 5px;
 	margin: 0;
@@ -28,7 +28,7 @@
 }
 
 .content {
-	margin-left: 200px;
+	margin-left: 110px;
 }
 
 .messages {
@@ -80,8 +80,13 @@
 	cursor: pointer;
 }
 
+.user_current {
+	border: 1px green solid;
+	background: rgb(173, 255, 178);
+}
+
 .messages_texts, .timeline_texts {
-    padding: 40px 200px 20px 3px;
+    padding: 40px 170px 20px 3px;
 }
 
 /* Timeline */
