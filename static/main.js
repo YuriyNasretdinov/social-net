@@ -12,7 +12,7 @@ var tabs = ['messages', 'timeline', 'friends', 'users_list']
 var loaders = {}
 
 function updateConnectionStatus() {
-    document.getElementById('status').innerHTML = '<span style="color: ' + (connected ? 'green' : 'red') + ';">•</span>';
+	document.getElementById('status').innerHTML = '<span style="color: ' + (connected ? 'green' : 'red') + ';">•</span>';
 }
 
 function onUserConnect(userInfo) {
@@ -72,60 +72,51 @@ function onMessage(evt) {
 }
 
 function sendReq(reqType, reqData, onrcv) {
-    var cb = function() {
+	var cb = function() {
 		var msg = reqType + " " + seqId + "\n" + JSON.stringify(reqData)
-        websocket.send(msg)
-        rcvCallbacks[seqId] = onrcv
-        seqId++
-    }
+		websocket.send(msg)
+		rcvCallbacks[seqId] = onrcv
+		seqId++
+	}
 
-    if (connected) {
-        cb()
-    } else {
-        pendingRequests.push(cb)
-    }
+	if (connected) {
+		cb()
+	} else {
+		pendingRequests.push(cb)
+	}
 }
 
 function redrawUsers() {
 	var str = '<b>online users</b>'
-	var msgUsers = []
 
 	for (var userId in allUsers) {
 		var userInfo = allUsers[userId]
-        if (userId == ourUserId) continue
+		if (userId == ourUserId) continue
 		str += '<br/>' + userInfo.Name
-		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
 	}
 
 	document.getElementById("online_users").innerHTML = str
-	document.getElementById("users").innerHTML = msgUsers.join(" ")
-	var els = document.getElementsByClassName("user")
-	for (var i = 0; i < els.length; i++) {
-		addEv(els[i].id, 'click', function(ev) {
-			showMessages(ev.target.id.replace('messages', ''))
-		})
-	}
 }
 
 function setWebsocketConnection() {
 	rcvCallbacks = {}
 	websocket = new WebSocket("ws://" + window.location.host + "/events")
 	websocket.onopen = function(evt) {
-        connected = true
-        updateConnectionStatus()
+		connected = true
+		updateConnectionStatus()
 
-        for (var i = 0; i < pendingRequests.length; i++) {
-            pendingRequests[i]()
-        }
-    }
+		for (var i = 0; i < pendingRequests.length; i++) {
+			pendingRequests[i]()
+		}
+	}
 	websocket.onclose = function(evt) {
-        pendingRequests = []
-        connected = false
-        updateConnectionStatus()
+		pendingRequests = []
+		connected = false
+		updateConnectionStatus()
 
-        console.log("close")
-        setTimeout(setWebsocketConnection, 1000)
-    }
+		console.log("close")
+		setTimeout(setWebsocketConnection, 1000)
+	}
 	websocket.onmessage = onMessage
 	websocket.onerror = function(evt) { console.log("Error: " + evt) }
 }
@@ -157,50 +148,50 @@ function addEv(id, evName, func) {
 }
 
 function hideAll() {
-    for (var i = 0; i < tabs.length; i++) {
-        document.getElementById(tabs[i]).style.display = 'none'
-    }
+	for (var i = 0; i < tabs.length; i++) {
+		document.getElementById(tabs[i]).style.display = 'none'
+	}
 }
 
 function ShowCurrent() {
-    for (var i = 0; i < tabs.length; i++) {
-        var tab = tabs[i]
-        if (location.pathname.indexOf('/' + tab + '/') !== -1) {
-            document.getElementById(tabs[i]).style.display = ''
-            if (loaders[tab]) {
-                loaders[tab]()
-            }
-            break
-        }
-    }
+	for (var i = 0; i < tabs.length; i++) {
+		var tab = tabs[i]
+		if (location.pathname.indexOf('/' + tab + '/') !== -1) {
+			document.getElementById(tabs[i]).style.display = ''
+			if (loaders[tab]) {
+				loaders[tab]()
+			}
+			break
+		}
+	}
 }
 
 function changeLocation(title, url) {
-    history.replaceState(null, title, url)
-    hideAll()
-    ShowCurrent()
+	history.replaceState(null, title, url)
+	hideAll()
+	ShowCurrent()
 }
 
 function createTsEl(ts) {
-    var tsEl = document.createElement('div')
-    tsEl.className = 'ts'
-    var dt = new Date(ts / 1e6)
-    tsEl.appendChild(
-        document.createTextNode(
-            fmtDate(dt.getHours()) + ':' +
-                fmtDate(dt.getMinutes()) + ':' +
-                fmtDate(dt.getSeconds())
-        )
-    )
-    return tsEl
+	var tsEl = document.createElement('div')
+	tsEl.className = 'ts'
+	var dt = new Date(ts / 1e6)
+	tsEl.appendChild(
+		document.createTextNode(
+			fmtDate(dt.getHours()) + ':' +
+				fmtDate(dt.getMinutes()) + ':' +
+				fmtDate(dt.getSeconds())
+		)
+	)
+	return tsEl
 }
 
 function setUpPage() {
-    hideAll()
+	hideAll()
 	SetUpMessagesPage()
-    SetUpTimelinePage()
-    SetUpFriendsPage()
-    ShowCurrent()
+	SetUpTimelinePage()
+	SetUpFriendsPage()
+	ShowCurrent()
 
-    ShowTimeline()
+	ShowTimeline()
 }

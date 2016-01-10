@@ -38,11 +38,13 @@ const (
 	REQUEST_GET_USERS_LIST
 	REQUEST_ADD_FRIEND
 	REQUEST_CONFIRM_FRIENDSHIP
+	REQUEST_GET_MESSAGES_USERS
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
 	REPLY_GENERIC
 	REPLY_GET_TIMELINE
+	REPLY_GET_MESSAGES_USERS
 
 	MAX_MESSAGES_LIMIT   = 100
 	MAX_TIMELINE_LIMIT   = 100
@@ -112,6 +114,10 @@ type (
 		FriendId string
 	}
 
+	RequestGetMessagesUsers struct {
+		Limit uint64
+	}
+
 	BaseReply struct {
 		SeqId int
 		Type  string
@@ -141,6 +147,11 @@ type (
 	ReplyGetUsersList struct {
 		BaseReply
 		Users []JSUserListInfo
+	}
+
+	ReplyGetMessagesUsers struct {
+		BaseReply
+		Users []JSUserInfo
 	}
 
 	ReplyGetTimeline struct {
@@ -217,6 +228,7 @@ var (
 	// Messages
 	getMessagesStmt *sql.Stmt
 	sendMessageStmt *sql.Stmt
+	getMessagesUsersStmt *sql.Stmt
 
 	// Timeline
 	getFromTimelineStmt *sql.Stmt
@@ -342,7 +354,7 @@ func getAuthUserInfo(cookies []*http.Cookie) *SessionInfo {
 			if err == nil {
 				return info
 			} else {
-				fmt.Println("Error: " + err.Error())
+				log.Println("Get auth info error: " + err.Error())
 			}
 		}
 	}
@@ -849,6 +861,45 @@ func processConfirmFriendship(req *RequestConfirmFriend, seqId int, recvChan cha
 	}
 }
 
+func processGetMessagesUsers(req *RequestGetMessagesUsers, seqId int, recvChan chan interface{}, userId uint64, userName string) {
+	var (
+		err error
+		id uint64
+		name string
+		ts string
+	)
+
+	rows, err := getMessagesUsersStmt.Query(userId, req.Limit)
+	if err != nil {
+		log.Println(err.Error())
+		sendError(seqId, recvChan, "Could not get users list for messages")
+		return
+	}
+
+	defer rows.Close()
+
+	reply := new(ReplyGetMessagesUsers)
+	reply.SeqId = seqId
+	reply.Type = "REPLY_GET_MESSAGES_USERS"
+	reply.Users = make([]JSUserInfo, 0)
+
+	for rows.Next() {
+		if err := rows.Scan(&id, &name, &ts); err != nil {
+			log.Println(err.Error())
+			sendError(seqId, recvChan, "Could not get users list for messages")
+			return
+		}
+
+		reply.Users = append(reply.Users, JSUserInfo{Id: fmt.Sprint(id), Name: name})
+	}
+
+	eventsFlow <- &ControlEvent{
+		evType:   EVENT_USER_REPLY,
+		listener: recvChan,
+		reply:    reply,
+	}
+}
+
 func WebsocketEventsHandler(ws *websocket.Conn) {
 	var userInfo *SessionInfo
 
@@ -950,6 +1001,14 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 				}
 
 				go processConfirmFriendship(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
+			} else if reqType == "REQUEST_GET_MESSAGES_USERS" {
+				userReq := new(RequestGetMessagesUsers)
+				if err := decoder.Decode(userReq); err != nil {
+					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
+					continue
+				}
+
+				go processGetMessagesUsers(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
 			} else {
 				sendError(seqId, recvChan, "Invalid request type: "+reqType)
 				continue
@@ -1042,6 +1101,14 @@ func initStmts(db *sql.DB) {
 	sendMessageStmt = prepareStmt(db, `INSERT INTO social.Messages
 		(user_id, user_id_to, msg_type, message, ts)
 		VALUES(?, ?, ?, ?, ?)`)
+
+	getMessagesUsersStmt = prepareStmt(db, `SELECT user_id_to, u.name, MAX(ts) AS max_ts
+		FROM social.Messages AS m
+		INNER JOIN social.User AS u ON u.id = m.user_id_to
+		WHERE user_id = ?
+		GROUP BY user_id_to
+		ORDER BY max_ts DESC
+		LIMIT ?`)
 
 	addToTimelineStmt = prepareStmt(db, `INSERT INTO social.Timeline
 		(user_id, source_user_id, message, ts)

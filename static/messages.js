@@ -1,12 +1,39 @@
 var msgCurUser = 0
+loaders["messages"] = loadMessageUsers;
+
+function loadMessageUsers() {
+	sendReq(
+		"REQUEST_GET_MESSAGES_USERS",
+		{Limit: DEFAULT_MESSAGES_LIMIT},
+		function (reply) {
+			redrawMessageUsers(reply.Users)
+		}
+	)
+}
+
+function redrawMessageUsers(users) {
+	var msgUsers = []
+	for (var userId in users) {
+		var userInfo = users[userId]
+		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
+	}
+	document.getElementById("users").innerHTML = msgUsers.join(" ")
+
+	var els = document.getElementsByClassName("user")
+	for (var i = 0; i < els.length; i++) {
+		addEv(els[i].id, 'click', function(ev) {
+			showMessages(ev.target.id.replace('messages', ''))
+		})
+	}
+}
 
 function fmtDate(num)
 {
-    var res = '' + num
-    while (res.length < 2) {
-        res = '0' + res
-    }
-    return res
+	var res = '' + num
+	while (res.length < 2) {
+		res = '0' + res
+	}
+	return res
 }
 
 /**
@@ -16,16 +43,16 @@ function fmtDate(num)
  * @returns {HTMLElement}
  */
 function createMsgEl(msg) {
-    var div = document.createElement('div')
-    div.className = 'message'
-    if (msg.MsgType == 'In') {
-        div.className += ' message_in'
-    } else {
-        div.className += ' message_out'
-    }
-    div.appendChild(document.createTextNode(msg.Text))
-    div.appendChild(createTsEl(msg.Ts))
-    return div
+	var div = document.createElement('div')
+	div.className = 'message'
+	if (msg.MsgType == 'In') {
+		div.className += ' message_in'
+	} else {
+		div.className += ' message_out'
+	}
+	div.appendChild(document.createTextNode(msg.Text))
+	div.appendChild(createTsEl(msg.Ts))
+	return div
 }
 
 function showMessagesResponse(id, reply, erase) {
@@ -39,7 +66,7 @@ function showMessagesResponse(id, reply, erase) {
 		var msg = reply.Messages[i]
 		el.insertBefore(createMsgEl(msg), el.firstChild)
 
-        minTs = msg.Ts
+		minTs = msg.Ts
 		// do not show 'extra' message because it would otherwise be duplicate
 		if (i >= DEFAULT_MESSAGES_LIMIT - 1) break
 	}
@@ -70,12 +97,12 @@ function showMessagesResponse(id, reply, erase) {
 function onNewMessage(msg) {
 	if (msg.UserFrom != msgCurUser) {
 		// TODO: show messages from different users
-        console.log("Received message: ", msg)
-        console.log("UserFrom: ", msg.UserFrom, ", msgCurUser: ", msgCurUser)
-		return;
+		console.log("Received message: ", msg)
+		console.log("UserFrom: ", msg.UserFrom, ", msgCurUser: ", msgCurUser)
+		return
 	}
 
-    document.getElementById("messages_texts").appendChild(createMsgEl(msg))
+	document.getElementById("messages_texts").appendChild(createMsgEl(msg))
 }
 
 function showMessages(id) {
