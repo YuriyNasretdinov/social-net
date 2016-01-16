@@ -21,31 +21,10 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/go-sql-driver/mysql"
 	"golang.org/x/net/websocket"
+	"reflect"
 )
 
 const (
-	EVENT_USER_CONNECTED = iota
-	EVENT_USER_DISCONNECTED
-	EVENT_ONLINE_USERS_LIST
-	EVENT_USER_REPLY
-	EVENT_NEW_MESSAGE
-	EVENT_NEW_TIMELINE_EVENT
-
-	REQUEST_GET_MESSAGES = iota
-	REQUEST_SEND_MESSAGE
-	REQUEST_GET_TIMELINE
-	REQUEST_ADD_TO_TIMELINE
-	REQUEST_GET_USERS_LIST
-	REQUEST_ADD_FRIEND
-	REQUEST_CONFIRM_FRIENDSHIP
-	REQUEST_GET_MESSAGES_USERS
-
-	REPLY_ERROR = iota
-	REPLY_MESSAGES_LIST
-	REPLY_GENERIC
-	REPLY_GET_TIMELINE
-	REPLY_GET_MESSAGES_USERS
-
 	MAX_MESSAGES_LIMIT   = 100
 	MAX_TIMELINE_LIMIT   = 100
 	MAX_USERS_LIST_LIMIT = 100
@@ -82,41 +61,6 @@ type (
 		ReqData string
 	}
 
-	RequestGetMessages struct {
-		UserTo  uint64
-		DateEnd string
-		Limit   uint64
-	}
-
-	RequestSendMessage struct {
-		UserTo uint64
-		Text   string
-	}
-
-	RequestGetTimeline struct {
-		DateEnd string
-		Limit   uint64
-	}
-
-	RequestAddToTimeline struct {
-		Text string
-	}
-
-	RequestGetUsersList struct {
-		Limit uint64
-	}
-
-	RequestAddFriend struct {
-		FriendId string
-	}
-
-	RequestConfirmFriend struct {
-		FriendId string
-	}
-
-	RequestGetMessagesUsers struct {
-		Limit uint64
-	}
 
 	BaseReply struct {
 		SeqId int
@@ -137,36 +81,6 @@ type (
 		UserName string
 		Text     string
 		Ts       string
-	}
-
-	ReplyGetMessages struct {
-		BaseReply
-		Messages []Message
-	}
-
-	ReplyGetUsersList struct {
-		BaseReply
-		Users []JSUserListInfo
-	}
-
-	ReplyGetMessagesUsers struct {
-		BaseReply
-		Users []JSUserInfo
-	}
-
-	ReplyGetTimeline struct {
-		BaseReply
-		Messages []TimelineMessage
-	}
-
-	ReplyGeneric struct {
-		BaseReply
-		Success bool
-	}
-
-	ReplyError struct {
-		BaseReply
-		Message string
 	}
 
 	EventUserConnected struct {
@@ -486,16 +400,17 @@ func handleNewTimelineEvent(listenerMap map[chan interface{}]*SessionInfo, userL
 	}
 
 	for listener := range listenerMap {
-		if len(listener) >= cap(listener) {
-			continue
-		}
 		userEv := new(EventNewTimelineStatus)
 		userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
 		userEv.Ts = evInfo.Ts
 		userEv.UserId = fmt.Sprint(evInfo.UserId)
 		userEv.Text = evInfo.Text
 		userEv.UserName = evInfo.UserName
-		listener <- userEv
+
+		select {
+		case listener <- userEv:
+		default:
+		}
 	}
 }
 
@@ -538,367 +453,14 @@ func sendError(seqId int, recvChan chan interface{}, message string) {
 	}
 }
 
-func processGetMessages(req *RequestGetMessages, seqId int, recvChan chan interface{}, userId uint64) {
-	dateEnd := req.DateEnd
-
-	if dateEnd == "" {
-		dateEnd = fmt.Sprint(time.Now().UnixNano())
+// REQUEST_GET_MESSAGES => RequestGetMessages
+func convertUnderscoreToCamelCase(in string) string {
+	parts := strings.Split(in, "_")
+	out := make([]string, 0, len(parts))
+	for _, v := range parts {
+		out = append(out, strings.ToUpper(v[0:1]), strings.ToLower(v[1:]))
 	}
-
-	limit := req.Limit
-	if limit > MAX_MESSAGES_LIMIT {
-		limit = MAX_MESSAGES_LIMIT
-	}
-
-	if limit <= 0 {
-		sendError(seqId, recvChan, "Limit must be greater than 0")
-		return
-	}
-
-	rows, err := getMessagesStmt.Query(userId, req.UserTo, dateEnd, limit)
-	if err != nil {
-		sendError(seqId, recvChan, "Cannot select messages")
-		log.Println(err.Error())
-		return
-	}
-
-	reply := new(ReplyGetMessages)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_MESSAGES_LIST"
-	reply.Messages = make([]Message, 0)
-
-	defer rows.Close()
-	for rows.Next() {
-		var msg Message
-		if err = rows.Scan(&msg.Id, &msg.Text, &msg.Ts, &msg.MsgType); err != nil {
-			sendError(seqId, recvChan, "Cannot select messages")
-			log.Println(err.Error())
-			return
-		}
-		msg.UserFrom = fmt.Sprint(req.UserTo)
-		reply.Messages = append(reply.Messages, msg)
-	}
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-}
-
-func processGetUsersList(req *RequestGetUsersList, seqId int, recvChan chan interface{}, userId uint64) {
-	limit := req.Limit
-	if limit > MAX_USERS_LIST_LIMIT {
-		limit = MAX_USERS_LIST_LIMIT
-	}
-
-	if limit <= 0 {
-		sendError(seqId, recvChan, "Limit must be greater than 0")
-		return
-	}
-
-	rows, err := getUsersListStmt.Query(userId, limit)
-	if err != nil {
-		sendError(seqId, recvChan, "Cannot select users")
-		log.Println(err.Error())
-		return
-	}
-
-	reply := new(ReplyGetUsersList)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_USERS_LIST"
-	reply.Users = make([]JSUserListInfo, 0)
-
-	defer rows.Close()
-	for rows.Next() {
-		var user JSUserListInfo
-		var isFriendInt int
-		var friendshipConfirmed sql.NullInt64
-
-		if err = rows.Scan(&user.Name, &user.Id, &isFriendInt, &friendshipConfirmed); err != nil {
-			log.Println(err.Error())
-			return
-		}
-
-		user.IsFriend = (isFriendInt > 0)
-		user.FriendshipConfirmed = (friendshipConfirmed.Valid && friendshipConfirmed.Int64 > 0)
-
-		reply.Users = append(reply.Users, user)
-	}
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-}
-
-func processGetTimeline(req *RequestGetTimeline, seqId int, recvChan chan interface{}, userId uint64) {
-	dateEnd := req.DateEnd
-
-	if dateEnd == "" {
-		dateEnd = fmt.Sprint(time.Now().UnixNano())
-	}
-
-	limit := req.Limit
-	if limit > MAX_TIMELINE_LIMIT {
-		limit = MAX_TIMELINE_LIMIT
-	}
-
-	if limit <= 0 {
-		sendError(seqId, recvChan, "Limit must be greater than 0")
-		return
-	}
-
-	rows, err := getFromTimelineStmt.Query(userId, dateEnd, limit)
-	if err != nil {
-		sendError(seqId, recvChan, "Cannot select timeline")
-		log.Println(err.Error())
-		return
-	}
-
-	reply := new(ReplyGetTimeline)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_GET_TIMELINE"
-	reply.Messages = make([]TimelineMessage, 0)
-
-	defer rows.Close()
-	for rows.Next() {
-		var msg TimelineMessage
-		if err = rows.Scan(&msg.Id, &msg.UserId, &msg.UserName, &msg.Text, &msg.Ts); err != nil {
-			log.Println(err.Error())
-			return
-		}
-
-		reply.Messages = append(reply.Messages, msg)
-	}
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-}
-
-func processSendMessage(req *RequestSendMessage, seqId int, recvChan chan interface{}, userId uint64) {
-	// TODO: verify that user has rights to send message to the specified person
-	var (
-		err error
-		now = time.Now().UnixNano()
-	)
-
-	_, err = sendMessageStmt.Exec(userId, req.UserTo, MSG_TYPE_OUT, req.Text, now)
-	if err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not log outgoing message")
-		return
-	}
-
-	_, err = sendMessageStmt.Exec(req.UserTo, userId, MSG_TYPE_IN, req.Text, now)
-	if err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not log incoming message")
-		return
-	}
-
-	reply := new(ReplyGeneric)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_GENERIC"
-	reply.Success = true
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_NEW_MESSAGE,
-		listener: recvChan,
-		info: &InternalEventNewMessage{
-			UserFrom: userId,
-			UserTo:   req.UserTo,
-			Ts:       fmt.Sprint(now),
-			Text:     req.Text,
-		},
-	}
-}
-
-func getUserFriends(userId uint64) (userIds []uint64, err error) {
-	res, err := getFriendsList.Query()
-	if err != nil {
-		return
-	}
-
-	defer res.Close()
-
-	userIds = make([]uint64, 0)
-
-	for res.Next() {
-		var uid uint64
-		if err = res.Scan(&uid); err != nil {
-			log.Println(err.Error())
-			return
-		}
-
-		userIds = append(userIds, uid)
-	}
-
-	return
-}
-
-func processAddToTimeline(req *RequestAddToTimeline, seqId int, recvChan chan interface{}, userId uint64, userName string) {
-	var (
-		err error
-		now = time.Now().UnixNano()
-	)
-
-	userIds, err := getUserFriends(userId)
-	if err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not get user ids")
-		return
-	}
-
-	for _, uid := range userIds {
-		if _, err = addToTimelineStmt.Exec(uid, userId, req.Text, now); err != nil {
-			log.Println(err.Error())
-			sendError(seqId, recvChan, "Could not add to timeline")
-			return
-		}
-	}
-
-	reply := new(ReplyGeneric)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_GENERIC"
-	reply.Success = true
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_NEW_TIMELINE_EVENT,
-		listener: recvChan,
-		info: &InternalEventNewTimelineStatus{
-			UserId:   userId,
-			UserName: userName,
-			Ts:       fmt.Sprint(now),
-			Text:     req.Text,
-		},
-	}
-}
-
-func processRequestAddFriend(req *RequestAddFriend, seqId int, recvChan chan interface{}, userId uint64, userName string) {
-	var (
-		err      error
-		friendId uint64
-	)
-
-	if friendId, err = strconv.ParseUint(req.FriendId, 10, 64); err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Friend id is not numeric")
-		return
-	}
-
-	if friendId == userId {
-		sendError(seqId, recvChan, "You cannot add yourself as a friend")
-		return
-	}
-
-	if _, err = addFriendsRequestStmt.Exec(userId, friendId, 1); err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not add user as a friend")
-		return
-	}
-
-	if _, err = addFriendsRequestStmt.Exec(friendId, userId, 0); err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not add user as a friend")
-		return
-	}
-
-	reply := new(ReplyGeneric)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_GENERIC"
-	reply.Success = true
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-}
-
-func processConfirmFriendship(req *RequestConfirmFriend, seqId int, recvChan chan interface{}, userId uint64, userName string) {
-	var (
-		err      error
-		friendId uint64
-	)
-
-	if friendId, err = strconv.ParseUint(req.FriendId, 10, 64); err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Friend id is not numeric")
-		return
-	}
-
-	if _, err = confirmFriendshipStmt.Exec(userId, friendId); err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not confirm friendship")
-		return
-	}
-
-	reply := new(ReplyGeneric)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_GENERIC"
-	reply.Success = true
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
-}
-
-func processGetMessagesUsers(req *RequestGetMessagesUsers, seqId int, recvChan chan interface{}, userId uint64, userName string) {
-	var (
-		err error
-		id uint64
-		name string
-		ts string
-	)
-
-	rows, err := getMessagesUsersStmt.Query(userId, req.Limit)
-	if err != nil {
-		log.Println(err.Error())
-		sendError(seqId, recvChan, "Could not get users list for messages")
-		return
-	}
-
-	defer rows.Close()
-
-	reply := new(ReplyGetMessagesUsers)
-	reply.SeqId = seqId
-	reply.Type = "REPLY_GET_MESSAGES_USERS"
-	reply.Users = make([]JSUserInfo, 0)
-
-	for rows.Next() {
-		if err := rows.Scan(&id, &name, &ts); err != nil {
-			log.Println(err.Error())
-			sendError(seqId, recvChan, "Could not get users list for messages")
-			return
-		}
-
-		reply.Users = append(reply.Users, JSUserInfo{Id: fmt.Sprint(id), Name: name})
-	}
-
-	eventsFlow <- &ControlEvent{
-		evType:   EVENT_USER_REPLY,
-		listener: recvChan,
-		reply:    reply,
-	}
+	return strings.Join(out, "")
 }
 
 func WebsocketEventsHandler(ws *websocket.Conn) {
@@ -909,8 +471,12 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 		return
 	}
 
+//	dupReader := io.TeeReader(ws, os.Stdout)
 	rd := bufio.NewReader(ws)
 	decoder := json.NewDecoder(rd)
+
+	var ctx *WebsocketCtx
+	ctxRefl := reflect.TypeOf(ctx)
 
 	recvChan := make(chan interface{}, 100)
 	eventsFlow <- &ControlEvent{evType: EVENT_USER_CONNECTED, info: userInfo, listener: recvChan}
@@ -946,73 +512,53 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 				return
 			}
 
-			if reqType == "REQUEST_GET_MESSAGES" {
-				userReq := new(RequestGetMessages)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processGetMessages(userReq, seqId, recvChan, userInfo.Id)
-			} else if reqType == "REQUEST_SEND_MESSAGE" {
-				userReq := new(RequestSendMessage)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processSendMessage(userReq, seqId, recvChan, userInfo.Id)
-			} else if reqType == "REQUEST_GET_TIMELINE" {
-				userReq := new(RequestGetTimeline)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processGetTimeline(userReq, seqId, recvChan, userInfo.Id)
-			} else if reqType == "REQUEST_ADD_TO_TIMELINE" {
-				userReq := new(RequestAddToTimeline)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processAddToTimeline(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
-			} else if reqType == "REQUEST_GET_USERS_LIST" {
-				userReq := new(RequestGetUsersList)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processGetUsersList(userReq, seqId, recvChan, userInfo.Id)
-			} else if reqType == "REQUEST_ADD_FRIEND" {
-				userReq := new(RequestAddFriend)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processRequestAddFriend(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
-			} else if reqType == "REQUEST_CONFIRM_FRIENDSHIP" {
-				userReq := new(RequestConfirmFriend)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processConfirmFriendship(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
-			} else if reqType == "REQUEST_GET_MESSAGES_USERS" {
-				userReq := new(RequestGetMessagesUsers)
-				if err := decoder.Decode(userReq); err != nil {
-					sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
-					continue
-				}
-
-				go processGetMessagesUsers(userReq, seqId, recvChan, userInfo.Id, userInfo.Name)
-			} else {
+			reqCamel := convertUnderscoreToCamelCase(strings.TrimPrefix(reqType, "REQUEST_"))
+			method, ok := ctxRefl.MethodByName("Process" + reqCamel)
+			if !ok {
 				sendError(seqId, recvChan, "Invalid request type: "+reqType)
+				var msg interface{}
+				decoder.Decode(&msg)
 				continue
+			}
+
+			reflMethodType := method.Type.In(1)
+
+			userReq := reflect.New(reflMethodType.Elem()).Interface()
+
+			if err := decoder.Decode(&userReq); err != nil {
+				sendError(seqId, recvChan, "Cannot decode request: "+err.Error())
+				continue
+			}
+
+			ctx = &WebsocketCtx{
+				seqId: seqId,
+				userId: userInfo.Id,
+				listener: recvChan,
+				userName: userInfo.Name,
+			}
+
+			resp := func () (resp interface{}) {
+				defer func() {
+					if r := recover(); r != nil {
+						resp = &ResponseError{userMsg: "Internal error", err: fmt.Errorf("Panic on request: %s %v", reqCamel, r)}
+					}
+				}()
+
+				respSlice := method.Func.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(userReq)})
+				resp = respSlice[0].Interface()
+				return
+			}()
+
+			switch v := resp.(type) {
+			case *ResponseError:
+				log.Println(v.err.Error())
+				sendError(seqId, recvChan, v.userMsg)
+			default:
+				eventsFlow <- &ControlEvent{
+					evType:   EVENT_USER_REPLY,
+					listener: recvChan,
+					reply:    v,
+				}
 			}
 		}
 	}()

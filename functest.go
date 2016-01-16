@@ -64,6 +64,7 @@ func responseReaderThread(c *websocket.Conn, online, connected, newmsg chan bool
 		var value map[string]interface{}
 
 		if err := rd.Decode(&value); err != nil {
+			time.Sleep(time.Second)
 			log.Fatalln("Could not decode value: ", err.Error())
 		}
 
@@ -77,6 +78,7 @@ func responseReaderThread(c *websocket.Conn, online, connected, newmsg chan bool
 				setFlag(connected)
 			case "EVENT_NEW_MESSAGE":
 				if value["UserFrom"].(string) != fmt.Sprint(TEST_USER_ID) {
+					time.Sleep(time.Second)
 					log.Fatalf("Improper event new message, expected UserFrom=%d: %+v", TEST_USER_ID, value)
 				}
 				setFlag(newmsg)
@@ -168,6 +170,14 @@ func checkFlag(fl chan bool, name string) {
 	}
 }
 
+func testConvertUnderscoreToCamelCase() {
+	exp := "RequestGetMessages"
+	res := convertUnderscoreToCamelCase("REQUEST_GET_MESSAGES")
+	if res != exp {
+		log.Panicf("Unexpected result from convertUnderscoreToCamelCase, expected '%s', got '%s'", exp, res)
+	}
+}
+
 func runTest(addr string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -186,6 +196,8 @@ func runTest(addr string) (err error) {
 	if err != nil {
 		return
 	}
+
+	testConvertUnderscoreToCamelCase()
 
 	online := make(chan bool, 1)
 	connected := make(chan bool, 1)
