@@ -1,4 +1,4 @@
-package main
+package session
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/YuriyNasretdinov/social-net/config"
 	"github.com/bradfitz/gomemcache/memcache"
 )
 
@@ -18,12 +19,12 @@ type (
 
 var mc *memcache.Client
 
-func initSession() {
+func InitSession() {
 	rand.Seed(time.Now().UnixNano())
-	mc = memcache.New(conf.Memcache)
+	mc = memcache.New(config.Conf.Memcache)
 }
 
-func getSessionInfo(id string) (result *SessionInfo, err error) {
+func GetSessionInfo(id string) (result *SessionInfo, err error) {
 	var item *memcache.Item
 	item, err = mc.Get("session_" + id)
 	if err != nil {
@@ -42,7 +43,7 @@ func getSessionInfo(id string) (result *SessionInfo, err error) {
 }
 
 // Create session with info and return session identifier or error
-func createSession(info *SessionInfo) (id string, err error) {
+func CreateSession(info *SessionInfo) (id string, err error) {
 	var contents []byte
 	contents, err = json.Marshal(info)
 	if err != nil {

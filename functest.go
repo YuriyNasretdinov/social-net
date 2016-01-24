@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"log"
 	"time"
+
+	"github.com/YuriyNasretdinov/social-net/protocol"
+	"golang.org/x/net/websocket"
 )
 
 const TEST_PASSWORD = "test"
@@ -90,9 +92,9 @@ func responseReaderThread(c *websocket.Conn, online, connected, newmsg chan bool
 }
 
 type TestConn struct {
-	c *websocket.Conn
+	c        *websocket.Conn
 	respChan chan map[string]interface{}
-	seqId int
+	seqId    int
 }
 
 func (p *TestConn) callMethod(msg, respMsg string, req, resp interface{}) error {
@@ -124,11 +126,11 @@ func (p *TestConn) callMethod(msg, respMsg string, req, resp interface{}) error 
 }
 
 func testGetMessages(p *TestConn) {
-	var reply ReplyGetMessages
+	var reply protocol.ReplyGetMessages
 
 	log.Printf("Testing get messages")
 
-	err := p.callMethod("REQUEST_GET_MESSAGES", "REPLY_MESSAGES_LIST", &RequestGetMessages{Limit: 10, UserTo: TEST_USER_ID}, &reply)
+	err := p.callMethod("REQUEST_GET_MESSAGES", "REPLY_MESSAGES_LIST", &protocol.RequestGetMessages{Limit: 10, UserTo: TEST_USER_ID}, &reply)
 	if err != nil {
 		panic(err)
 	}
@@ -147,16 +149,16 @@ func testGetMessages(p *TestConn) {
 		log.Panicf("Unexpected msg text: expected '%s', got '%s'", TEST_MSG_TEXT, msg.Text)
 	}
 
-	if msg.MsgType != MSG_TYPE_OUT {
-		log.Panicf("Unexpected msg type: expected '%s', got '%s'", MSG_TYPE_OUT, msg.MsgType)
+	if msg.MsgType != protocol.MSG_TYPE_OUT {
+		log.Panicf("Unexpected msg type: expected '%s', got '%s'", protocol.MSG_TYPE_OUT, msg.MsgType)
 	}
 }
 
 func testSendMessage(p *TestConn) error {
-	var reply ReplyGeneric
+	var reply protocol.ReplyGeneric
 	log.Printf("Testing send message")
 
-	err := p.callMethod("REQUEST_SEND_MESSAGE", "REPLY_GENERIC", &RequestSendMessage{UserTo: TEST_USER_ID, Text: TEST_MSG_TEXT}, &reply)
+	err := p.callMethod("REQUEST_SEND_MESSAGE", "REPLY_GENERIC", &protocol.RequestSendMessage{UserTo: TEST_USER_ID, Text: TEST_MSG_TEXT}, &reply)
 	if err != nil {
 		panic(err)
 	}
