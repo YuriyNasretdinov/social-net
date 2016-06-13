@@ -6,27 +6,27 @@ import (
 	"crypto/sha1"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"errors"
-	"reflect"
+	_ "github.com/cockroachdb/cockroach-go/crdb"
 
 	"github.com/YuriyNasretdinov/social-net/config"
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
+	"github.com/YuriyNasretdinov/social-net/handlers"
 	"github.com/YuriyNasretdinov/social-net/protocol"
 	"github.com/YuriyNasretdinov/social-net/session"
-	"github.com/go-sql-driver/mysql"
 	"golang.org/x/net/websocket"
-	"github.com/YuriyNasretdinov/social-net/handlers"
 )
 
 func serveStatic(filename string, w http.ResponseWriter) {
@@ -267,7 +267,7 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 
 			switch v := resp.(type) {
 			case *protocol.ResponseError:
-				log.Println(v.Err.Error())
+				log.Println(reqCamel, ":", v.Err.Error())
 				sendError(seqId, recvChan, v.UserMsg)
 			default:
 				events.EventsFlow <- &events.ControlEvent{
@@ -298,11 +298,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 func registerUser(email, userPassword, name string) (err error, duplicate bool) {
 	_, err = db.RegisterStmt.Exec(email, passwordHash(userPassword), name)
 	if err != nil {
-		if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1062 { // duplicate
-			err = nil
-			duplicate = true
-			return
-		}
+		// TODO: check for duplicate key in Cockroach
 		log.Println("Could not register user: ", err.Error())
 	}
 
@@ -357,12 +353,12 @@ func main() {
 
 	config.ParseConfig(configPath)
 
-	dbObj, err := sql.Open("mysql", config.Conf.Mysql)
+	db.Db, err = sql.Open("postgres", config.Conf.Postgresql)
 	if err != nil {
 		log.Fatal("Could not connect to db: " + err.Error())
 	}
 
-	db.InitStmts(dbObj)
+	db.InitStmts()
 	session.InitSession()
 
 	http.Handle("/events", websocket.Handler(WebsocketEventsHandler))

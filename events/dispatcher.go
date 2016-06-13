@@ -156,7 +156,7 @@ func handleNewMessage(listenerMap map[chan interface{}]*session.SessionInfo, use
 			fromEv := new(EventNewMessage)
 			*fromEv = *event
 			fromEv.UserFrom = fmt.Sprint(sourceEvent.UserTo)
-			fromEv.MsgType = protocol.MSG_TYPE_OUT
+			fromEv.IsOut = protocol.MSG_TYPE_OUT
 			select {
 			case listener <- fromEv:
 			default:
@@ -170,7 +170,7 @@ func handleNewMessage(listenerMap map[chan interface{}]*session.SessionInfo, use
 			toEv := new(EventNewMessage)
 			*toEv = *event
 			toEv.UserFrom = fmt.Sprint(sourceEvent.UserFrom)
-			toEv.MsgType = protocol.MSG_TYPE_IN
+			toEv.IsOut = protocol.MSG_TYPE_IN
 			select {
 			case listener <- toEv:
 			default:

@@ -20,8 +20,8 @@ const (
 	MAX_TIMELINE_LIMIT   = 100
 	MAX_USERS_LIST_LIMIT = 100
 
-	MSG_TYPE_OUT = "Out"
-	MSG_TYPE_IN  = "In"
+	MSG_TYPE_OUT = true
+	MSG_TYPE_IN  = false
 )
 
 type (
@@ -51,7 +51,7 @@ type (
 		Id       uint64
 		UserFrom string
 		Ts       string
-		MsgType  string
+		IsOut    bool
 		Text     string
 	}
 
@@ -69,13 +69,13 @@ type (
 	}
 
 	RequestGetMessages struct {
-		UserTo  uint64
+		UserTo  uint64 `json:",string"`
 		DateEnd string
 		Limit   uint64
 	}
 
 	RequestSendMessage struct {
-		UserTo uint64
+		UserTo uint64 `json:",string"`
 		Text   string
 	}
 

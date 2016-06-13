@@ -3,9 +3,11 @@ package db
 import (
 	"database/sql"
 	"log"
+	"strings"
 )
 
 var (
+	Db *sql.DB
 
 	// Authorization
 	LoginStmt *sql.Stmt
@@ -40,53 +42,78 @@ func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
 	return res
 }
 
-//language=MySQL
-func InitStmts(db *sql.DB) {
-	LoginStmt = prepareStmt(db, "SELECT id, password, name FROM social.User WHERE email = ?")
-	RegisterStmt = prepareStmt(db, "INSERT INTO social.User(email, password, name) VALUES(?, ?, ?)")
-	GetFriendsList = prepareStmt(db, `SELECT id FROM social.User`)
+//language=PostgreSQL
+func InitStmts() {
+	LoginStmt = prepareStmt(Db, "SELECT id, password, name FROM socialuser WHERE email = $1")
+	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name) VALUES($1, $2, $3) RETURNING id")
+	GetFriendsList = prepareStmt(Db, `SELECT id FROM socialuser`)
 
-	GetMessagesStmt = prepareStmt(db, `SELECT id, message, ts, msg_type
-		FROM social.Messages
-		WHERE user_id = ? AND user_id_to = ? AND ts < ?
+	GetMessagesStmt = prepareStmt(Db, `SELECT id, message, ts, is_out
+		FROM messages
+		WHERE user_id = $1 AND user_id_to = $2 AND ts < $3
 		ORDER BY ts DESC
-		LIMIT ?`)
+		LIMIT $4`)
 
-	SendMessageStmt = prepareStmt(db, `INSERT INTO social.Messages
-		(user_id, user_id_to, msg_type, message, ts)
-		VALUES(?, ?, ?, ?, ?)`)
+	SendMessageStmt = prepareStmt(Db, `INSERT INTO messages
+		(user_id, user_id_to, is_out, message, ts)
+		VALUES($1, $2, $3, $4, $5)
+		RETURNING id`)
 
-	GetMessagesUsersStmt = prepareStmt(db, `SELECT user_id_to, u.name, MAX(ts) AS max_ts
-		FROM social.Messages AS m
-		INNER JOIN social.User AS u ON u.id = m.user_id_to
-		WHERE user_id = ?
+	GetMessagesUsersStmt = prepareStmt(Db, `SELECT user_id_to, MAX(ts) AS max_ts
+		FROM messages AS m
+		WHERE user_id = $1
 		GROUP BY user_id_to
 		ORDER BY max_ts DESC
-		LIMIT ?`)
+		LIMIT $2`)
 
-	AddToTimelineStmt = prepareStmt(db, `INSERT INTO social.Timeline
+	AddToTimelineStmt = prepareStmt(Db, `INSERT INTO timeline
 		(user_id, source_user_id, message, ts)
-		VALUES(?, ?, ?, ?)`)
+		VALUES($1, $2, $3, $4)
+		RETURNING id`)
 
-	AddFriendsRequestStmt = prepareStmt(db, `INSERT INTO social.Friend
+	AddFriendsRequestStmt = prepareStmt(Db, `INSERT INTO friend
 		(user_id, friend_user_id, request_accepted)
-		VALUES(?, ?, ?)`)
+		VALUES($1, $2, $3)
+		RETURNING id`)
 
-	ConfirmFriendshipStmt = prepareStmt(db, `UPDATE social.Friend
-		SET request_accepted = 1
-		WHERE user_id = ? AND friend_user_id = ?`)
+	ConfirmFriendshipStmt = prepareStmt(Db, `UPDATE friend
+		SET request_accepted = TRUE
+		WHERE user_id = $1 AND friend_user_id = $2`)
 
-	GetFromTimelineStmt = prepareStmt(db, `SELECT t.id, t.source_user_id, u.name, t.message, t.ts
-		FROM social.Timeline t
-		LEFT JOIN social.User u ON u.id = t.source_user_id
-		WHERE t.user_id = ? AND t.ts < ?
+	GetFromTimelineStmt = prepareStmt(Db, `SELECT t.id, t.source_user_id, t.message, t.ts
+		FROM timeline t
+		WHERE t.user_id = $1 AND t.ts < $2
 		ORDER BY t.ts DESC
-		LIMIT ?`)
+		LIMIT $3`)
 
-	GetUsersListStmt = prepareStmt(db, `SELECT
-			u.name, u.id, IF(f.id IS NOT NULL, 1, 0) AS is_friend, f.request_accepted
-		FROM social.User AS u
-		LEFT JOIN social.Friend AS f ON u.id = f.friend_user_id AND f.user_id = ?
+	GetUsersListStmt = prepareStmt(Db, `SELECT
+			u.name, u.id
+		FROM socialuser AS u
 		ORDER BY id
-		LIMIT ?`)
+		LIMIT $1`)
+}
+
+// user id is string for simplicity
+func GetUserNames(userIds []string) (map[string]string, error) {
+	userNames := make(map[string]string)
+
+	if len(userIds) > 0 {
+		rows, err := Db.Query(`SELECT id, name FROM socialuser WHERE id IN(` + strings.Join(userIds, ",") + `)`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var id string
+			var name string
+			if err = rows.Scan(&id, &name); err != nil {
+				return nil, err
+			}
+
+			userNames[id] = name
+		}
+	}
+
+	return userNames, nil
 }

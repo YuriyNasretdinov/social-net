@@ -10,9 +10,9 @@ import (
 
 type (
 	Config struct {
-		Mysql    string
-		Memcache string
-		Bind     string
+		Postgresql string
+		Memcache   string
+		Bind       string
 	}
 )
 

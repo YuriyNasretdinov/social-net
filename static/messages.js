@@ -9,7 +9,7 @@ function loadMessageUsers() {
 			redrawMessageUsers(reply.Users)
 			var location_parts = ("" + location.pathname).split(/\//g)
 			if (location_parts[2]) {
-				msgCurUser = +location_parts[2]
+				msgCurUser = location_parts[2]
 				showMessages(msgCurUser)
 			}
 		}
@@ -65,10 +65,10 @@ function fmtDate(num)
 function createMsgEl(msg) {
 	var div = document.createElement('div')
 	div.className = 'message'
-	if (msg.MsgType == 'In') {
-		div.className += ' message_in'
-	} else {
+	if (msg.IsOut) {
 		div.className += ' message_out'
+	} else {
+		div.className += ' message_in'
 	}
 	div.appendChild(document.createTextNode(msg.Text))
 	div.appendChild(createTsEl(msg.Ts))
@@ -101,7 +101,7 @@ function showMessagesResponse(id, reply, erase) {
 			sendReq(
 				"REQUEST_GET_MESSAGES",
 				{
-					UserTo: +id,
+					UserTo: id,
 					DateEnd: minTs,
 					Limit: DEFAULT_MESSAGES_LIMIT + 1,
 				},
@@ -134,7 +134,6 @@ function showMessages(id) {
 	var el = document.getElementById('messages' + id)
 	el.className = "user user_current"
 
-	id = +id
 	msgCurUser = id
 
 	history.replaceState(null, "Messages", "/messages/" + msgCurUser)

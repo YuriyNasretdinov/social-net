@@ -149,8 +149,8 @@ func testGetMessages(p *TestConn) {
 		log.Panicf("Unexpected msg text: expected '%s', got '%s'", TEST_MSG_TEXT, msg.Text)
 	}
 
-	if msg.MsgType != protocol.MSG_TYPE_OUT {
-		log.Panicf("Unexpected msg type: expected '%s', got '%s'", protocol.MSG_TYPE_OUT, msg.MsgType)
+	if msg.IsOut != protocol.MSG_TYPE_OUT {
+		log.Panicf("Unexpected msg type: expected '%v', got '%v'", protocol.MSG_TYPE_OUT, msg.IsOut)
 	}
 }
 

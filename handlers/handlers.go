@@ -1,11 +1,12 @@
 package handlers
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"strconv"
 	"time"
+
+	"strings"
 
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
@@ -50,7 +51,7 @@ func (ctx *WebsocketCtx) ProcessGetMessages(req *protocol.RequestGetMessages) in
 	defer rows.Close()
 	for rows.Next() {
 		var msg protocol.Message
-		if err = rows.Scan(&msg.Id, &msg.Text, &msg.Ts, &msg.MsgType); err != nil {
+		if err = rows.Scan(&msg.Id, &msg.Text, &msg.Ts, &msg.IsOut); err != nil {
 			return &protocol.ResponseError{UserMsg: "Cannot select messages", Err: err}
 		}
 		msg.UserFrom = fmt.Sprint(req.UserTo)
@@ -70,7 +71,7 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 		return &protocol.ResponseError{UserMsg: "Limit must be greater than 0"}
 	}
 
-	rows, err := db.GetUsersListStmt.Query(ctx.UserId, limit)
+	rows, err := db.GetUsersListStmt.Query(limit)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
 	}
@@ -80,20 +81,45 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 	reply.Type = "REPLY_USERS_LIST"
 	reply.Users = make([]protocol.JSUserListInfo, 0)
 
+	potentialFriends := make([]string, 0)
+
 	defer rows.Close()
 	for rows.Next() {
 		var user protocol.JSUserListInfo
-		var isFriendInt int
-		var friendshipConfirmed sql.NullInt64
+		var potentialFriendId int64
 
-		if err = rows.Scan(&user.Name, &user.Id, &isFriendInt, &friendshipConfirmed); err != nil {
+		if err = rows.Scan(&user.Name, &potentialFriendId); err != nil {
 			return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
 		}
 
-		user.IsFriend = (isFriendInt > 0)
-		user.FriendshipConfirmed = (friendshipConfirmed.Valid && friendshipConfirmed.Int64 > 0)
-
+		user.Id = fmt.Sprint(potentialFriendId)
 		reply.Users = append(reply.Users, user)
+		potentialFriends = append(potentialFriends, user.Id)
+	}
+
+	friendsMap := make(map[string]bool)
+
+	if len(potentialFriends) > 0 {
+		friendRows, err := db.Db.Query(`SELECT friend_user_id, request_accepted FROM friend
+		WHERE user_id = ` + fmt.Sprint(ctx.UserId) + ` AND friend_user_id IN(` + strings.Join(potentialFriends, ",") + `)`)
+		if err != nil {
+			return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
+		}
+		defer friendRows.Close()
+
+		for friendRows.Next() {
+			var friendId string
+			var requestAccepted bool
+			if err = friendRows.Scan(&friendId, &requestAccepted); err != nil {
+				return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
+			}
+
+			friendsMap[friendId] = requestAccepted
+		}
+	}
+
+	for i, user := range reply.Users {
+		reply.Users[i].FriendshipConfirmed, reply.Users[i].IsFriend = friendsMap[user.Id]
 	}
 
 	return reply
@@ -287,10 +313,9 @@ func (ctx *WebsocketCtx) ProcessConfirmFriendship(req *protocol.RequestConfirmFr
 
 func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessagesUsers) interface{} {
 	var (
-		err  error
-		id   uint64
-		name string
-		ts   string
+		err error
+		id  uint64
+		ts  string
 	)
 
 	rows, err := db.GetMessagesUsersStmt.Query(ctx.UserId, req.Limit)
@@ -305,12 +330,25 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 	reply.Type = "REPLY_GET_MESSAGES_USERS"
 	reply.Users = make([]protocol.JSUserInfo, 0)
 
+	userIds := make([]string, 0)
+
 	for rows.Next() {
-		if err := rows.Scan(&id, &name, &ts); err != nil {
+		if err := rows.Scan(&id, &ts); err != nil {
 			return &protocol.ResponseError{UserMsg: "Could not get users list for messages", Err: err}
 		}
 
-		reply.Users = append(reply.Users, protocol.JSUserInfo{Id: fmt.Sprint(id), Name: name})
+		userId := fmt.Sprint(id)
+		reply.Users = append(reply.Users, protocol.JSUserInfo{Id: userId})
+		userIds = append(userIds, userId)
+	}
+
+	userNames, err := db.GetUserNames(userIds)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get users list for messages", Err: err}
+	}
+
+	for i, user := range reply.Users {
+		reply.Users[i].Name = userNames[user.Id]
 	}
 
 	return reply
