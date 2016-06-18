@@ -22,13 +22,13 @@ function redrawMessageUsers(users) {
 	for (i = 0; i < users.length; i++) {
 		userInfo = users[i]
 		shownUsers[userInfo.Id] = true
-		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><img src="https://new.vk.com/images/camera_200.png" id="messages' + userInfo.Id + '"><span id="messages' + userInfo.Id + '">' + userInfo.Name + "</span></div>")
+		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><span id="messages' + userInfo.Id + '">' + userInfo.Name + "</span></div>")
 	}
 
 	for (var userId in allUsers) {
 		if (shownUsers[userId] || userId == ourUserId) continue
 		userInfo = allUsers[userId]
-		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><img src="https://new.vk.com/images/camera_200.png" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
+		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
 	}
 
 	document.getElementById("users").innerHTML = msgUsers.join(" ")
