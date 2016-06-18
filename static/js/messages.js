@@ -22,7 +22,7 @@ function redrawMessageUsers(users) {
 	for (i = 0; i < users.length; i++) {
 		userInfo = users[i]
 		shownUsers[userInfo.Id] = true
-		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
+		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><span id="messages' + userInfo.Id + '">' + userInfo.Name + "</span></div>")
 	}
 
 	for (var userId in allUsers) {
@@ -77,7 +77,7 @@ function createMsgEl(msg) {
 
 function showMessagesResponse(id, reply, erase) {
 	var len = reply.Messages.length
-	var el = document.getElementById("messages_texts")
+	var el = document.getElementById("message-content")
 	if (erase) el.innerHTML = ''
 
 	var minTs
@@ -122,7 +122,7 @@ function onNewMessage(msg) {
 		return
 	}
 
-	document.getElementById("messages_texts").appendChild(createMsgEl(msg))
+	document.getElementById("message-content").appendChild(createMsgEl(msg))
 }
 
 function showMessages(id) {
