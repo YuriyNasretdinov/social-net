@@ -1,43 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 	<title>Social network (authorized)</title>
-	<script type="text/javascript" src="/static/main.js"></script>
-	<script type="text/javascript" src="/static/messages.js"></script>
-	<script type="text/javascript" src="/static/timeline.js"></script>
-	<script type="text/javascript" src="/static/friends.js"></script>
-	<link rel="stylesheet" href="/static/main.css" />
+	<link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+	<link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
+	<div class="header-wrapper">
+		<div class="container">
+			<ul>
+				<li><a href="/timeline/" id="timeline_link">Timeline</a></li>
+				<li><a href="/messages/" id="messages_link">Messages</a></li>
+				<li><a href="/friends/" id="friends_link">Friends</a></li>
+				<li><a href="/users_list/" id="users_list_link">Users</a></li>
+			</ul>
+			<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
+		</div>
+	</div>
 	<div class="error_text" id="error_text" style="display: none;"></div>
 
-	<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
-	<div class="onlines" id="online_users">online users</div>
-	<div class="left_menu">
-        <div><a href="/timeline/" id="timeline_link">Timeline</a></div>
-		<div><a href="/messages/" id="messages_link">Messages</a></div>
-		<div><a href="/friends/" id="friends_link">Friends</a></div>
-		<div><a href="/users_list/" id="users_list_link">Users</a></div>
+	<div class="onlines" id="online_users">
+		online users
 	</div>
 	<div class="content">
 		<div class="messages" id="messages">
-			<div class="users" id="users"><!--
-				<div class="user">
+			<div class="users" id="users">
+				<!--<div class="user">
 					userName1
 				</div>
 			--></div>
 			<div class="messages_texts" id="messages_texts">
-
+				<div id="message-content"></div>
+				<div class="message_form">
+	                <b>Write message:</b>
+	                <textarea id="msg"></textarea>
+	                <button>Отправить</button>
+				</div>
 			</div>
-			<div class="message_form">
-                <b>Write message:</b>
-                <input type="text" id="msg" />
-			</div>
+			
 		</div>
         <div class="timeline" id="timeline">
+
             <div class="timeline_form">
-                <b>How you are feeling today?</b>
-                <input type="text" id="timeline_msg" />
+                <b>How you are feeling tody?</b>
+                <textarea id="timeline_msg"></textarea>
+                <button>Отправить</button>
             </div>
 
             <div class="timeline_texts" id="timeline_texts">
@@ -47,10 +54,14 @@
 		<div class="friends" id="friends">
             <div class="friend">Friend1</div>
         </div>
-        <div class="users_list" id="users_list"><!--
+        <div class="users_list" id="users_list">
             <div class="users_list_item">User1</div>
-        --></div>
+        </div>
 	</div>
+	<script type="text/javascript" src="/static/js/main.js"></script>
+	<script type="text/javascript" src="/static/js/messages.js"></script>
+	<script type="text/javascript" src="/static/js/timeline.js"></script>
+	<script type="text/javascript" src="/static/js/friends.js"></script>
 	<script>
         var ourUserId = {{.Id}};
 		setWebsocketConnection();

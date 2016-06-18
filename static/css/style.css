@@ -1,0 +1,246 @@
+*{
+	margin: 0;
+	padding: 0;
+}
+
+a{
+	color: #3498db;
+}
+
+body{
+	font-family: 'Open Sans', sans-serif;
+	font-size: 12px;
+	background-color: #ecf0f1;
+	margin-top: 60px;
+}
+
+.header-wrapper{
+	top: 0;
+	width: 100%;
+	height: 50px;
+	position: fixed;
+	z-index: 999;
+	background-color: #34495e;
+}
+
+.header-wrapper ul {
+	width: 600px;
+	line-height: 50px;
+	float: left;
+}
+
+.header-wrapper ul li {
+	display: inline-block;
+	margin-right: 10px;
+}
+
+.header-wrapper ul li a {
+	text-decoration: none;
+	color: #fff;
+	font-size: 12px;
+	padding: 15px 10px;	
+}
+
+.login_info {
+	width: 200px;
+	float: right;
+	color: #fff;
+	text-align: right;
+	line-height: 50px;
+	font-size: 12px;
+}
+
+.container{
+	width: 960px;
+	margin: 0 auto;
+}
+
+.onlines {
+	position: fixed;
+	bottom: 0;
+	right: 0;
+	border-radius: 15px 0px 0px 0px;
+	padding: 10px;
+	width: 200px;
+	border-top: 1px black solid;
+	border-left: 1px black solid;
+    z-index: 2;
+    background: white;
+}
+
+.left_menu {
+	display: none;
+}
+
+.content {
+	width: 960px;
+	margin: 0 auto;
+}
+/* users block content */
+#messages {
+	background-color: #fff;
+	border-radius: 3px;
+	height: calc( 100vh - 70px );
+	width: 960px;
+	margin: 0 auto;
+}
+
+#messages_show_more, #timeline_show_more {
+	cursor: pointer;
+}
+
+.message {
+	padding: 3px;
+	margin: 3px;
+}
+
+.message_out {
+    text-align: right;
+}
+
+.message .ts, .timeline_event .ts {
+    float: right;
+    font-size: 10px;
+    color: grey;
+    padding-left: 5px;
+    padding-top: 3px;
+}
+
+.users {
+	width: 250px;
+	height: calc( 100vh - 80px );
+	border-right: 1px #dadada solid;
+	float: left;
+	padding: 5px;
+}
+
+.message_form {
+    bottom: 15px;
+    width: 680px;
+    border-top: 1px solid #dadada;
+}
+
+.message_form textarea {
+	width: 100%;
+	height: 60px;
+	border-radius: 3px;
+	border: 1px solid #dadada;
+	margin-left: 1px;
+	resize: none;
+	padding: 3px;
+	font-size: 12px;
+}
+
+.message_form button{
+	background-color: #3498db;
+	border-radius: 3px;
+	width: 125px;
+	height: 35px;
+	font-size: 12px;
+	color: #fff;
+	border: none;
+}
+
+#message-content{
+	display: block;
+	height: calc( 100vh - 200px );
+	overflow-y: scroll;
+}
+
+.user {
+	display: block;
+	width: calc( 100% - 3px );
+	height: 50px;
+	line-height: 50px;
+}
+
+.user img {
+	width: 40px;
+	border-radius: 100%;
+	display: inline-block;
+	margin: 5px;
+	float: left;
+}
+
+.user span {
+	margin-left: 10px;
+	float: left;
+}
+
+.user_current {
+	border-right: 3px solid #3498db;
+	background-color: #ecf0f1;
+}
+
+.messages_texts{
+	width: 695px;
+	float: right;
+}
+
+.timeline_event {
+	width: 590px;
+	min-height: 40px;
+	background-color: #fff;
+	border-radius: 3px;
+	padding: 10px;
+	margin-top: 10px;
+}
+
+/* Timeline */
+
+.timeline_form{
+	width: 590px;
+	height: 140px;
+	background-color: #fff;
+	border-radius: 3px;
+	padding: 10px;
+}
+
+.timeline_form textarea {
+	margin-top: 5px;
+	width: 580px;
+	height: 65px;
+	resize: none;
+	padding: 5px;
+	border: 1px solid #dadada;
+}
+
+.timeline_form button {
+	background-color: #3498db;
+	color: #fff;
+	font-size: 12px;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	margin-top: 5px;
+	width: 100px;
+	height: 30px;
+}
+
+.timeline_texts {
+    padding-top: 10px;
+}
+
+.timeline_username {
+    float: left;
+    font-weight: bold;
+    display: inline-block;
+    padding-right: 10px;
+}
+
+.friend {
+	border-bottom: 1px gray solid;
+}
+
+.error_text {
+	background-color: #3498db;
+	color: #fff;
+	position: fixed;
+	top: 70px;
+	text-align: center;
+	z-index: 1;
+	padding: 10px 15px;
+	left: 10px;
+	z-index: 1000;
+	border-radius: 3px;
+}
