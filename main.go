@@ -267,7 +267,9 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 
 			switch v := resp.(type) {
 			case *protocol.ResponseError:
-				log.Println(reqCamel, ":", v.Err.Error())
+				if v.Err != nil {
+					log.Println(reqCamel, ":", v.Err.Error())
+				}
 				sendError(seqId, recvChan, v.UserMsg)
 			default:
 				events.EventsFlow <- &events.ControlEvent{

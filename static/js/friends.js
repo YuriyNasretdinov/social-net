@@ -10,6 +10,7 @@ function SetUpFriendsPage() {
 }
 
 loaders['users_list'] = loadUsersList
+loaders['friends'] = loadFriends
 
 function requestAddFriendCallback(ev) {
 	var el = ev.target
@@ -31,6 +32,21 @@ function confirmFriendshipCallback(ev) {
 	})
 
 	return false
+}
+
+function loadFriends() {
+	sendReq("REQUEST_GET_FRIENDS", {Limit: 50}, function (reply) {
+		var el = document.getElementById('friends')
+		el.innerHTML = '<b>Friends:</b><hr/>'
+
+		var friends = reply.Users
+		for (var i = 0; i < friends.length; i++) {
+			var r = friends[i]
+			var div = document.createElement('div')
+			div.appendChild(document.createTextNode(r.Name))
+			el.appendChild(div)
+		}
+	})
 }
 
 function loadUsersList() {

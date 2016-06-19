@@ -50,6 +50,11 @@ body{
 	font-size: 12px;
 }
 
+#status {
+	font-size: 30px;
+	vertical-align: middle;
+}
+
 .container{
 	width: 960px;
 	margin: 0 auto;
@@ -87,6 +92,8 @@ body{
 
 #messages_show_more, #timeline_show_more {
 	cursor: pointer;
+	padding: 10px;
+	font-size: 20px;
 }
 
 .message {
@@ -179,11 +186,11 @@ body{
 
 .timeline_event {
 	width: 590px;
-	min-height: 40px;
+	min-height: 18px;
 	background-color: #fff;
 	border-radius: 3px;
 	padding: 10px;
-	margin-top: 10px;
+	margin-top: 5px;
 }
 
 /* Timeline */
@@ -233,12 +240,11 @@ body{
 }
 
 .error_text {
-	background-color: #3498db;
+	background-color: #db364c;
 	color: #fff;
 	position: fixed;
 	top: 70px;
 	text-align: center;
-	z-index: 1;
 	padding: 10px 15px;
 	left: 10px;
 	z-index: 1000;

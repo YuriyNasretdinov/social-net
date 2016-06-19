@@ -125,6 +125,46 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 	return reply
 }
 
+func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) interface{} {
+	limit := req.Limit
+	if limit > protocol.MAX_FRIENDS_LIMIT {
+		limit = protocol.MAX_FRIENDS_LIMIT
+	}
+
+	if limit <= 0 {
+		return &protocol.ResponseError{UserMsg: "Limit must be greater than 0"}
+	}
+
+	friendUserIds, err := getUserFriends(ctx.UserId)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get friends", Err: err}
+	}
+
+	reply := new(protocol.ReplyGetFriends)
+	reply.SeqId = ctx.SeqId
+	reply.Type = "REPLY_GET_FRIENDS"
+	reply.Users = make([]protocol.JSUserInfo, 0)
+
+	friendUserIdsStr := make([]string, 0)
+
+	for _, userId := range friendUserIds {
+		userIdStr := fmt.Sprint(userId)
+		reply.Users = append(reply.Users, protocol.JSUserInfo{Id: userIdStr})
+		friendUserIdsStr = append(friendUserIdsStr, userIdStr)
+	}
+
+	userNames, err := db.GetUserNames(friendUserIdsStr)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get friends", Err: err}
+	}
+
+	for i, user := range reply.Users {
+		reply.Users[i].Name = userNames[user.Id]
+	}
+
+	return reply
+}
+
 func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) interface{} {
 	dateEnd := req.DateEnd
 
@@ -151,14 +191,26 @@ func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) in
 	reply.Type = "REPLY_GET_TIMELINE"
 	reply.Messages = make([]protocol.TimelineMessage, 0)
 
+	userIds := make([]string, 0)
+
 	defer rows.Close()
 	for rows.Next() {
 		var msg protocol.TimelineMessage
-		if err = rows.Scan(&msg.Id, &msg.UserId, &msg.UserName, &msg.Text, &msg.Ts); err != nil {
+		if err = rows.Scan(&msg.Id, &msg.UserId, &msg.Text, &msg.Ts); err != nil {
 			return &protocol.ResponseError{UserMsg: "Cannot select timeline", Err: err}
 		}
 
 		reply.Messages = append(reply.Messages, msg)
+		userIds = append(userIds, msg.UserId)
+	}
+
+	userNames, err := db.GetUserNames(userIds)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Cannot select timeline", Err: err}
+	}
+
+	for i, row := range reply.Messages {
+		reply.Messages[i].UserName = userNames[row.UserId]
 	}
 
 	return reply
@@ -201,7 +253,7 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) in
 }
 
 func getUserFriends(userId uint64) (userIds []uint64, err error) {
-	res, err := db.GetFriendsList.Query()
+	res, err := db.GetFriendsList.Query(userId)
 	if err != nil {
 		return
 	}
@@ -234,6 +286,8 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 		return &protocol.ResponseError{UserMsg: "Could not get user ids", Err: err}
 	}
 
+	userIds = append(userIds, ctx.UserId)
+
 	for _, uid := range userIds {
 		if _, err = db.AddToTimelineStmt.Exec(uid, ctx.UserId, req.Text, now); err != nil {
 			return &protocol.ResponseError{UserMsg: "Could not add to timeline", Err: err}
@@ -249,17 +303,18 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 		EvType:   events.EVENT_NEW_TIMELINE_EVENT,
 		Listener: ctx.Listener,
 		Info: &events.InternalEventNewTimelineStatus{
-			UserId:   ctx.UserId,
-			UserName: ctx.UserName,
-			Ts:       fmt.Sprint(now),
-			Text:     req.Text,
+			UserId:        ctx.UserId,
+			FriendUserIds: userIds,
+			UserName:      ctx.UserName,
+			Ts:            fmt.Sprint(now),
+			Text:          req.Text,
 		},
 	}
 
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessRequestAddFriend(req *protocol.RequestAddFriend) interface{} {
+func (ctx *WebsocketCtx) ProcessAddFriend(req *protocol.RequestAddFriend) interface{} {
 	var (
 		err      error
 		friendId uint64
@@ -331,13 +386,31 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 	reply.Users = make([]protocol.JSUserInfo, 0)
 
 	userIds := make([]string, 0)
+	usersMap := make(map[uint64]bool)
 
 	for rows.Next() {
 		if err := rows.Scan(&id, &ts); err != nil {
 			return &protocol.ResponseError{UserMsg: "Could not get users list for messages", Err: err}
 		}
 
+		usersMap[id] = true
+
 		userId := fmt.Sprint(id)
+		reply.Users = append(reply.Users, protocol.JSUserInfo{Id: userId})
+		userIds = append(userIds, userId)
+	}
+
+	friendIds, err := getUserFriends(ctx.UserId)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get users list for messages", Err: err}
+	}
+
+	for _, friendId := range friendIds {
+		if usersMap[friendId] {
+			continue
+		}
+
+		userId := fmt.Sprint(friendId)
 		reply.Users = append(reply.Users, protocol.JSUserInfo{Id: userId})
 		userIds = append(userIds, userId)
 	}

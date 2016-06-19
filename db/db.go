@@ -46,7 +46,7 @@ func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
 func InitStmts() {
 	LoginStmt = prepareStmt(Db, "SELECT id, password, name FROM socialuser WHERE email = $1")
 	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name) VALUES($1, $2, $3) RETURNING id")
-	GetFriendsList = prepareStmt(Db, `SELECT id FROM socialuser`)
+	GetFriendsList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = true`)
 
 	GetMessagesStmt = prepareStmt(Db, `SELECT id, message, ts, is_out
 		FROM messages

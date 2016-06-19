@@ -62,10 +62,11 @@ type (
 	}
 
 	InternalEventNewTimelineStatus struct {
-		UserId   uint64
-		UserName string
-		Ts       string
-		Text     string
+		UserId        uint64
+		FriendUserIds []uint64
+		UserName      string
+		Ts            string
+		Text          string
 	}
 )
 
@@ -186,17 +187,24 @@ func handleNewTimelineEvent(listenerMap map[chan interface{}]*session.SessionInf
 		return
 	}
 
-	for listener := range listenerMap {
-		userEv := new(EventNewTimelineStatus)
-		userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
-		userEv.Ts = evInfo.Ts
-		userEv.UserId = fmt.Sprint(evInfo.UserId)
-		userEv.Text = evInfo.Text
-		userEv.UserName = evInfo.UserName
+	for _, friendUserId := range evInfo.FriendUserIds {
+		listeners := userListeners[friendUserId]
+		if listeners == nil {
+			continue
+		}
 
-		select {
-		case listener <- userEv:
-		default:
+		for listener := range listeners {
+			userEv := new(EventNewTimelineStatus)
+			userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
+			userEv.Ts = evInfo.Ts
+			userEv.UserId = fmt.Sprint(evInfo.UserId)
+			userEv.Text = evInfo.Text
+			userEv.UserName = evInfo.UserName
+
+			select {
+			case listener <- userEv:
+			default:
+			}
 		}
 	}
 }

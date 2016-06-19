@@ -25,12 +25,6 @@ function redrawMessageUsers(users) {
 		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><span id="messages' + userInfo.Id + '">' + userInfo.Name + "</span></div>")
 	}
 
-	for (var userId in allUsers) {
-		if (shownUsers[userId] || userId == ourUserId) continue
-		userInfo = allUsers[userId]
-		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '">' + userInfo.Name + "</div>")
-	}
-
 	document.getElementById("users").innerHTML = msgUsers.join(" ")
 
 	el = document.getElementById('messages' + msgCurUser)
@@ -160,6 +154,12 @@ function SetUpMessagesPage() {
 		if (ev.keyCode == 13) {
 			sendMessage(ev.target.value)
 			ev.target.value = ''
+			return false
 		}
+	})
+	addEv("send_msg", 'click', function() {
+		var msgEl = document.getElementById('msg')
+		sendMessage(msgEl.value)
+		msgEl.value = ''
 	})
 }

@@ -9,16 +9,19 @@ const (
 	REQUEST_ADD_FRIEND
 	REQUEST_CONFIRM_FRIENDSHIP
 	REQUEST_GET_MESSAGES_USERS
+	REQUEST_GET_FRIENDS
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
 	REPLY_GENERIC
 	REPLY_GET_TIMELINE
 	REPLY_GET_MESSAGES_USERS
+	REPLY_GET_FRIENDS
 
 	MAX_MESSAGES_LIMIT   = 100
 	MAX_TIMELINE_LIMIT   = 100
 	MAX_USERS_LIST_LIMIT = 100
+	MAX_FRIENDS_LIMIT    = 100
 
 	MSG_TYPE_OUT = true
 	MSG_TYPE_IN  = false
@@ -104,6 +107,10 @@ type (
 		Limit uint64
 	}
 
+	RequestGetFriends struct {
+		Limit uint64
+	}
+
 	ReplyGetMessages struct {
 		BaseReply
 		Messages []Message
@@ -112,6 +119,11 @@ type (
 	ReplyGetUsersList struct {
 		BaseReply
 		Users []JSUserListInfo
+	}
+
+	ReplyGetFriends struct {
+		BaseReply
+		Users []JSUserInfo
 	}
 
 	ReplyGetMessagesUsers struct {
