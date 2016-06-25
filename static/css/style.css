@@ -73,6 +73,10 @@ body{
     background: white;
 }
 
+.current_tab {
+	font-weight: bold;
+}
+
 .left_menu {
 	display: none;
 }

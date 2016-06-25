@@ -6,6 +6,15 @@ import (
 	"strings"
 )
 
+type (
+	City struct {
+		Id   uint64
+		Name string
+		Lon  float64
+		Lat  float64
+	}
+)
+
 var (
 	Db *sql.DB
 
@@ -31,6 +40,12 @@ var (
 	// Friends
 	AddFriendsRequestStmt *sql.Stmt
 	ConfirmFriendshipStmt *sql.Stmt
+
+	// Profile
+	GetProfileStmt *sql.Stmt
+
+	// City
+	GetCityInfoStmt *sql.Stmt
 )
 
 func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
@@ -91,6 +106,13 @@ func InitStmts() {
 		FROM socialuser AS u
 		ORDER BY id
 		LIMIT $1`)
+
+	GetProfileStmt = prepareStmt(Db, `SELECT
+			name, birthdate, sex, description, city_id, family_position
+		FROM userinfo
+		WHERE user_id = $1`)
+
+	GetCityInfoStmt = prepareStmt(Db, `SELECT name, lon, lat FROM city WHERE id = $1`)
 }
 
 // user id is string for simplicity
@@ -116,4 +138,15 @@ func GetUserNames(userIds []string) (map[string]string, error) {
 	}
 
 	return userNames, nil
+}
+
+func GetCityInfo(id uint64) (*City, error) {
+	res := new(City)
+	res.Id = id
+	row := GetCityInfoStmt.QueryRow(res.Id)
+	err := row.Scan(&res.Name, &res.Lon, &res.Lat)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }

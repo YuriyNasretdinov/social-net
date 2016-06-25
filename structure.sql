@@ -38,5 +38,14 @@ CREATE TABLE userinfo (
   name VARCHAR(255),
   birthdate DATE,
   sex INT,
-  description TEXT
+  description TEXT,
+  city_id INT,
+  family_position INT
+);
+
+CREATE TABLE city (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  lon REAL,
+  lat REAL
 );

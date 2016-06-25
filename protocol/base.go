@@ -10,6 +10,7 @@ const (
 	REQUEST_CONFIRM_FRIENDSHIP
 	REQUEST_GET_MESSAGES_USERS
 	REQUEST_GET_FRIENDS
+	REQUEST_GET_PROFILE
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
@@ -17,6 +18,7 @@ const (
 	REPLY_GET_TIMELINE
 	REPLY_GET_MESSAGES_USERS
 	REPLY_GET_FRIENDS
+	REPLY_GET_PROFILE
 
 	MAX_MESSAGES_LIMIT   = 100
 	MAX_TIMELINE_LIMIT   = 100
@@ -25,8 +27,15 @@ const (
 
 	MSG_TYPE_OUT = true
 	MSG_TYPE_IN  = false
+
+	SEX_TYPE_MALE   = 1
+	SEX_TYPE_FEMALE = 2
+
+	FAMILY_POSITION_SINGLE  = 1
+	FAMILY_POSITION_MARRIED = 2
 )
 
+// Request types
 type (
 	JSUserInfo struct {
 		Name string
@@ -111,6 +120,13 @@ type (
 		Limit uint64
 	}
 
+	RequestGetProfile struct {
+		UserId uint64 `json:",string"`
+	}
+)
+
+// Reply types
+type (
 	ReplyGetMessages struct {
 		BaseReply
 		Messages []Message
@@ -134,6 +150,17 @@ type (
 	ReplyGetTimeline struct {
 		BaseReply
 		Messages []TimelineMessage
+	}
+
+	ReplyGetProfile struct {
+		BaseReply
+		Name           string
+		Birthdate      string
+		Sex            int
+		Description    string
+		CityId         uint64
+		CityName       string
+		FamilyPosition int
 	}
 
 	ReplyGeneric struct {

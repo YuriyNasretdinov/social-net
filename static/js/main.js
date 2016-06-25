@@ -8,7 +8,7 @@ var pendingRequests = []
 
 var DEFAULT_MESSAGES_LIMIT = 5
 
-var tabs = ['messages', 'timeline', 'friends', 'users_list']
+var tabs = ['messages', 'timeline', 'friends', 'users_list', 'profile']
 var loaders = {}
 
 function updateConnectionStatus() {
@@ -222,7 +222,9 @@ function addEv(id, evName, func) {
 
 function hideAll() {
 	for (var i = 0; i < tabs.length; i++) {
-		document.getElementById(tabs[i]).style.display = 'none'
+		var tab = tabs[i]
+		document.getElementById(tab).style.display = 'none'
+		document.getElementById(tab + '_link').className = ''
 	}
 }
 
@@ -230,9 +232,10 @@ function ShowCurrent() {
 	for (var i = 0; i < tabs.length; i++) {
 		var tab = tabs[i]
 		if (location.pathname.indexOf('/' + tab + '/') !== -1) {
-			document.getElementById(tabs[i]).style.display = ''
+			document.getElementById(tab).style.display = ''
 			if (loaders[tab]) {
 				loaders[tab]()
+				document.getElementById(tab + '_link').className = 'current_tab'
 			}
 			break
 		}

@@ -13,6 +13,10 @@ import (
 	"github.com/YuriyNasretdinov/social-net/protocol"
 )
 
+const (
+	DATE_FORMAT = "2006-01-02"
+)
+
 type (
 	WebsocketCtx struct {
 		SeqId    int
@@ -223,6 +227,10 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) in
 		now = time.Now().UnixNano()
 	)
 
+	if len(req.Text) == 0 {
+		return &protocol.ResponseError{UserMsg: "Message text must not be empty"}
+	}
+
 	_, err = db.SendMessageStmt.Exec(ctx.UserId, req.UserTo, protocol.MSG_TYPE_OUT, req.Text, now)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not log outgoing message", Err: err}
@@ -280,6 +288,10 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 		err error
 		now = time.Now().UnixNano()
 	)
+
+	if len(req.Text) == 0 {
+		return &protocol.ResponseError{UserMsg: "Text must not be empty"}
+	}
 
 	userIds, err := getUserFriends(ctx.UserId)
 	if err != nil {
@@ -424,5 +436,30 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 		reply.Users[i].Name = userNames[user.Id]
 	}
 
+	return reply
+}
+
+func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) interface{} {
+	reply := new(protocol.ReplyGetProfile)
+	reply.SeqId = ctx.SeqId
+	reply.Type = "REPLY_GET_PROFILE"
+
+	row := db.GetProfileStmt.QueryRow(req.UserId)
+	var birthdate time.Time
+
+	err := row.Scan(&reply.Name, &birthdate, &reply.Sex, &reply.Description, &reply.CityId, &reply.FamilyPosition)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+	}
+
+	reply.Birthdate = birthdate.Format(DATE_FORMAT)
+
+	city, err := db.GetCityInfo(reply.CityId)
+	if err != nil {
+		log.Printf("Could not get city by id=%d for user id=%d", reply.CityId, req.UserId)
+		city = &db.City{}
+	}
+
+	reply.CityName = city.Name
 	return reply
 }

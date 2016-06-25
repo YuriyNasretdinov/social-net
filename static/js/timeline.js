@@ -1,5 +1,7 @@
 var DEFAULT_TIMELINE_LIMIT = 10
 
+loaders["timeline"] = function() {}
+
 function SetUpTimelinePage() {
 	addEv("timeline_link", "click", function(ev) {
 		changeLocation("Timeline", "/timeline/")
