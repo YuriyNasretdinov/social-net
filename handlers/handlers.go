@@ -26,7 +26,7 @@ type (
 	}
 )
 
-func (ctx *WebsocketCtx) ProcessGetMessages(req *protocol.RequestGetMessages) interface{} {
+func (ctx *WebsocketCtx) ProcessGetMessages(req *protocol.RequestGetMessages) protocol.Reply {
 	dateEnd := req.DateEnd
 
 	if dateEnd == "" {
@@ -47,9 +47,7 @@ func (ctx *WebsocketCtx) ProcessGetMessages(req *protocol.RequestGetMessages) in
 		return &protocol.ResponseError{UserMsg: "Cannot select messages", Err: err}
 	}
 
-	reply := new(protocol.ReplyGetMessages)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_MESSAGES_LIST"
+	reply := new(protocol.ReplyMessagesList)
 	reply.Messages = make([]protocol.Message, 0)
 
 	defer rows.Close()
@@ -65,7 +63,7 @@ func (ctx *WebsocketCtx) ProcessGetMessages(req *protocol.RequestGetMessages) in
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) interface{} {
+func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) protocol.Reply {
 	limit := req.Limit
 	if limit > protocol.MAX_USERS_LIST_LIMIT {
 		limit = protocol.MAX_USERS_LIST_LIMIT
@@ -80,9 +78,7 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 		return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
 	}
 
-	reply := new(protocol.ReplyGetUsersList)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_USERS_LIST"
+	reply := new(protocol.ReplyUsersList)
 	reply.Users = make([]protocol.JSUserListInfo, 0)
 
 	potentialFriends := make([]string, 0)
@@ -129,7 +125,7 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) interface{} {
+func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) protocol.Reply {
 	limit := req.Limit
 	if limit > protocol.MAX_FRIENDS_LIMIT {
 		limit = protocol.MAX_FRIENDS_LIMIT
@@ -145,8 +141,6 @@ func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) inte
 	}
 
 	reply := new(protocol.ReplyGetFriends)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GET_FRIENDS"
 	reply.Users = make([]protocol.JSUserInfo, 0)
 
 	friendUserIdsStr := make([]string, 0)
@@ -169,7 +163,7 @@ func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) inte
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) interface{} {
+func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) protocol.Reply {
 	dateEnd := req.DateEnd
 
 	if dateEnd == "" {
@@ -191,8 +185,6 @@ func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) in
 	}
 
 	reply := new(protocol.ReplyGetTimeline)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GET_TIMELINE"
 	reply.Messages = make([]protocol.TimelineMessage, 0)
 
 	userIds := make([]string, 0)
@@ -220,7 +212,7 @@ func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) in
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) interface{} {
+func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) protocol.Reply {
 	// TODO: verify that user has rights to send message to the specified person
 	var (
 		err error
@@ -242,8 +234,6 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) in
 	}
 
 	reply := new(protocol.ReplyGeneric)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GENERIC"
 	reply.Success = true
 
 	events.EventsFlow <- &events.ControlEvent{
@@ -283,7 +273,7 @@ func getUserFriends(userId uint64) (userIds []uint64, err error) {
 	return
 }
 
-func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline) interface{} {
+func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline) protocol.Reply {
 	var (
 		err error
 		now = time.Now().UnixNano()
@@ -307,8 +297,6 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 	}
 
 	reply := new(protocol.ReplyGeneric)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GENERIC"
 	reply.Success = true
 
 	events.EventsFlow <- &events.ControlEvent{
@@ -326,7 +314,7 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessAddFriend(req *protocol.RequestAddFriend) interface{} {
+func (ctx *WebsocketCtx) ProcessAddFriend(req *protocol.RequestAddFriend) protocol.Reply {
 	var (
 		err      error
 		friendId uint64
@@ -349,14 +337,12 @@ func (ctx *WebsocketCtx) ProcessAddFriend(req *protocol.RequestAddFriend) interf
 	}
 
 	reply := new(protocol.ReplyGeneric)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GENERIC"
 	reply.Success = true
 
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessConfirmFriendship(req *protocol.RequestConfirmFriendship) interface{} {
+func (ctx *WebsocketCtx) ProcessConfirmFriendship(req *protocol.RequestConfirmFriendship) protocol.Reply {
 	var (
 		err      error
 		friendId uint64
@@ -371,14 +357,12 @@ func (ctx *WebsocketCtx) ProcessConfirmFriendship(req *protocol.RequestConfirmFr
 	}
 
 	reply := new(protocol.ReplyGeneric)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GENERIC"
 	reply.Success = true
 
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessagesUsers) interface{} {
+func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessagesUsers) protocol.Reply {
 	var (
 		err error
 		id  uint64
@@ -393,8 +377,6 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 	defer rows.Close()
 
 	reply := new(protocol.ReplyGetMessagesUsers)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GET_MESSAGES_USERS"
 	reply.Users = make([]protocol.JSUserInfo, 0)
 
 	userIds := make([]string, 0)
@@ -439,15 +421,25 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) interface{} {
+func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) protocol.Reply {
 	reply := new(protocol.ReplyGetProfile)
-	reply.SeqId = ctx.SeqId
-	reply.Type = "REPLY_GET_PROFILE"
 
-	row := db.GetProfileStmt.QueryRow(req.UserId)
+	row, err := db.GetProfileStmt.Query(req.UserId)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+	}
+	defer row.Close()
+
 	var birthdate time.Time
+	if !row.Next() {
+		if req.Required {
+			return &protocol.ResponseError{UserMsg: "No such user", Err: err}
+		} else {
+			return reply
+		}
+	}
 
-	err := row.Scan(&reply.Name, &birthdate, &reply.Sex, &reply.Description, &reply.CityId, &reply.FamilyPosition)
+	err = row.Scan(&reply.Name, &birthdate, &reply.Sex, &reply.Description, &reply.CityId, &reply.FamilyPosition)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
 	}
@@ -461,5 +453,45 @@ func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) inte
 	}
 
 	reply.CityName = city.Name
+	return reply
+}
+
+func (ctx *WebsocketCtx) ProcessUpdateProfile(req *protocol.RequestUpdateProfile) protocol.Reply {
+	reply := new(protocol.ReplyGeneric)
+	reply.Success = true
+
+	if req.CityName == "" || req.Birthdate == "" || req.Name == "" {
+		return &protocol.ResponseError{UserMsg: "All fields must be filled in"}
+	}
+
+	var cityId uint64
+	city, err := db.GetCityInfoByName(req.CityName)
+	if err != nil {
+		res := db.AddCityStmt.QueryRow(req.CityName, 0, 0)
+		if err = res.Scan(&cityId); err != nil {
+			return &protocol.ResponseError{UserMsg: "Could not update user profile", Err: err}
+		}
+	} else {
+		cityId = city.Id
+	}
+
+	row, err := db.GetProfileStmt.Query(ctx.UserId)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+	}
+	defer row.Close()
+
+	if !row.Next() {
+		_, err := db.AddProfileStmt.Exec(&ctx.UserId, &req.Name, &req.Birthdate, &req.Sex, "", &cityId, &req.FamilyPosition)
+		if err != nil {
+			return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+		}
+	} else {
+		_, err := db.UpdateProfileStmt.Exec(&req.Name, &req.Birthdate, &req.Sex, "", &cityId, &req.FamilyPosition, &ctx.UserId)
+		if err != nil {
+			return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+		}
+	}
+
 	return reply
 }

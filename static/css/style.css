@@ -254,3 +254,23 @@ body{
 	z-index: 1000;
 	border-radius: 3px;
 }
+
+#loading {
+	width: 100vw;
+	height: 100vh;
+	position: absolute;
+	z-index: 1000;
+	top: 0;
+	left: 0;
+	opacity: 0.5;
+	background: #ccc;
+}
+
+#loading_overlay {
+	width: 100vw;
+	text-align: center;
+	position: absolute;
+	top: 50vh;
+	left: 0;
+	z-index: 1001;
+}

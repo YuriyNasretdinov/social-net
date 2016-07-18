@@ -11,6 +11,7 @@ const (
 	REQUEST_GET_MESSAGES_USERS
 	REQUEST_GET_FRIENDS
 	REQUEST_GET_PROFILE
+	REQUEST_UPDATE_PROFILE
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
@@ -59,6 +60,11 @@ type (
 		Type  string
 	}
 
+	Reply interface {
+		SetSeqId(int)
+		SetReplyType(string)
+	}
+
 	Message struct {
 		Id       uint64
 		UserFrom string
@@ -76,6 +82,7 @@ type (
 	}
 
 	ResponseError struct {
+		BaseReply
 		UserMsg string
 		Err     error
 	}
@@ -121,18 +128,27 @@ type (
 	}
 
 	RequestGetProfile struct {
-		UserId uint64 `json:",string"`
+		UserId   uint64 `json:",string"`
+		Required bool
+	}
+
+	RequestUpdateProfile struct {
+		Name           string
+		Birthdate      string
+		Sex            int
+		CityName       string
+		FamilyPosition int
 	}
 )
 
 // Reply types
 type (
-	ReplyGetMessages struct {
+	ReplyMessagesList struct {
 		BaseReply
 		Messages []Message
 	}
 
-	ReplyGetUsersList struct {
+	ReplyUsersList struct {
 		BaseReply
 		Users []JSUserListInfo
 	}
@@ -158,7 +174,7 @@ type (
 		Birthdate      string
 		Sex            int
 		Description    string
-		CityId         uint64
+		CityId         uint64 `json:",string"`
 		CityName       string
 		FamilyPosition int
 	}
@@ -173,3 +189,11 @@ type (
 		Message string
 	}
 )
+
+func (p *BaseReply) SetSeqId(id int) {
+	p.SeqId = id
+}
+
+func (p *BaseReply) SetReplyType(t string) {
+	p.Type = t
+}

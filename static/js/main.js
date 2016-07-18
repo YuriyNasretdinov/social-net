@@ -108,6 +108,14 @@ function onUserDisconnect(userInfo) {
 	}
 }
 
+function showError(msg) {
+	var el = document.getElementById('error_text')
+	el.style.display = ''
+	el.innerHTML = ''
+	el.appendChild(document.createTextNode(msg))
+	setTimeout(function() { el.style.display = 'none' }, 2000)
+}
+
 function onMessage(evt) {
 	var reply = JSON.parse(evt.data)
 	if (reply.Type == 'EVENT_ONLINE_USERS_LIST') {
@@ -128,11 +136,7 @@ function onMessage(evt) {
 			console.log(reply)
 		} else {
 			if (reply.Type == 'REPLY_ERROR') {
-				var el = document.getElementById('error_text')
-				el.style.display = ''
-				el.innerHTML = ''
-				el.appendChild(document.createTextNode(reply.Message))
-				setTimeout(function() { el.style.display = 'none' }, 2000)
+				showError(reply.Message)
 			} else {
 				rcvCallbacks[reply.SeqId](reply)
 			}
@@ -271,4 +275,7 @@ function setUpPage() {
 	ShowCurrent()
 
 	ShowTimeline()
+
+	document.getElementById('loading').style.display = 'none'
+	document.getElementById('loading_overlay').style.display = 'none'
 }

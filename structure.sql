@@ -47,5 +47,6 @@ CREATE TABLE city (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
   lon REAL,
-  lat REAL
+  lat REAL,
+  UNIQUE (name)
 );

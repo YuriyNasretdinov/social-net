@@ -42,10 +42,14 @@ var (
 	ConfirmFriendshipStmt *sql.Stmt
 
 	// Profile
-	GetProfileStmt *sql.Stmt
+	GetProfileStmt    *sql.Stmt
+	AddProfileStmt    *sql.Stmt
+	UpdateProfileStmt *sql.Stmt
 
 	// City
-	GetCityInfoStmt *sql.Stmt
+	GetCityInfoStmt       *sql.Stmt
+	GetCityInfoByNameStmt *sql.Stmt
+	AddCityStmt           *sql.Stmt
 )
 
 func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
@@ -112,7 +116,17 @@ func InitStmts() {
 		FROM userinfo
 		WHERE user_id = $1`)
 
+	AddProfileStmt = prepareStmt(Db, `INSERT INTO userinfo
+			(user_id, name, birthdate, sex, description, city_id, family_position)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+
+	UpdateProfileStmt = prepareStmt(Db, `UPDATE userinfo SET
+			name = $1, birthdate = $2, sex = $3, description = $4, city_id = $5, family_position = $6
+			WHERE user_id = $7`)
+
 	GetCityInfoStmt = prepareStmt(Db, `SELECT name, lon, lat FROM city WHERE id = $1`)
+	GetCityInfoByNameStmt = prepareStmt(Db, `SELECT id, name, lon, lat FROM city WHERE name = $1`)
+	AddCityStmt = prepareStmt(Db, `INSERT INTO city(name, lon, lat) VALUES($1, $2, $3) RETURNING id`)
 }
 
 // user id is string for simplicity
@@ -145,6 +159,16 @@ func GetCityInfo(id uint64) (*City, error) {
 	res.Id = id
 	row := GetCityInfoStmt.QueryRow(res.Id)
 	err := row.Scan(&res.Name, &res.Lon, &res.Lat)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func GetCityInfoByName(name string) (*City, error) {
+	res := new(City)
+	row := GetCityInfoByNameStmt.QueryRow(name)
+	err := row.Scan(&res.Id, &res.Name, &res.Lon, &res.Lat)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	_ "github.com/cockroachdb/cockroach-go/crdb"
 
@@ -179,6 +180,20 @@ func convertUnderscoreToCamelCase(in string) string {
 	return strings.Join(out, "")
 }
 
+// ReplyGetMessages => REPLY_GET_MESSAGES
+func convertCamelCaseToUnderscore(in string) string {
+	out := make([]rune, 0)
+
+	for _, c := range in {
+		if unicode.IsUpper(c) && len(out) > 0 {
+			out = append(out, '_')
+		}
+		out = append(out, unicode.ToUpper(c))
+	}
+
+	return string(out)
+}
+
 func WebsocketEventsHandler(ws *websocket.Conn) {
 	var userInfo *session.SessionInfo
 
@@ -271,12 +286,16 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 					log.Println(reqCamel, ":", v.Err.Error())
 				}
 				sendError(seqId, recvChan, v.UserMsg)
-			default:
+			case protocol.Reply:
+				v.SetSeqId(seqId)
+				v.SetReplyType(convertCamelCaseToUnderscore(strings.SplitN(fmt.Sprintf("%T", v), ".", 2)[1]))
 				events.EventsFlow <- &events.ControlEvent{
 					EvType:   events.EVENT_USER_REPLY,
 					Listener: recvChan,
 					Reply:    v,
 				}
+			default:
+				log.Panicf("Got %T that does not satisfy protocol.Reply", v)
 			}
 		}
 	}()
