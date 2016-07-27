@@ -14,7 +14,7 @@
 				<li><a href="/timeline/" id="timeline_link">Timeline</a></li>
 				<li><a href="/profile/" id="profile_link">Profile</a></li>
 				<li><a href="/messages/" id="messages_link">Messages</a></li>
-				<li><a href="/friends/" id="friends_link">Friends</a></li>
+				<li><a href="/friends/" id="friends_link">Friends<span id="friends_badge" style="display: none;"></span></a></li>
 				<li><a href="/users_list/" id="users_list_link">Users</a></li>
 			</ul>
 			<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
@@ -66,6 +66,7 @@
 	<script type="text/javascript" src="/static/js/profile.js"></script>
 	<script>
         var ourUserId = "{{.Id}}";
+		var friendsRequestsCount = parseInt("{{.FriendsRequestsCount}}");
 		setWebsocketConnection();
 		setUpPage();
 	</script>

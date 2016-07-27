@@ -126,7 +126,23 @@ func passwordHash(password string) string {
 	return fmt.Sprintf("%x:%x", sh.Sum(nil), md.Sum(nil))
 }
 
-func serveAuthPage(info *session.SessionInfo, w http.ResponseWriter) {
+func serveAuthPage(sessionInfo *session.SessionInfo, w http.ResponseWriter) {
+	info := new(struct {
+		session.SessionInfo
+		FriendsRequestsCount int
+	})
+
+	info.Id = sessionInfo.Id
+	info.Name = sessionInfo.Name
+	info.FriendsRequestsCount = 0
+
+	friendsReqs, err := db.GetUserFriendsRequests(sessionInfo.Id)
+	if err != nil {
+		log.Println("Could not get friends requests: ", err.Error())
+	} else {
+		info.FriendsRequestsCount = len(friendsReqs)
+	}
+
 	if err := authTpl.Execute(w, info); err != nil {
 		fmt.Println("Could not render template: " + err.Error())
 	}

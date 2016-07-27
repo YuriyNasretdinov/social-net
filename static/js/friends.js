@@ -17,10 +17,20 @@ function requestAddFriendCallback(ev) {
 	var friend_id = el.id.replace('add_friend_link_', '')
 
 	sendReq("REQUEST_ADD_FRIEND", {FriendId: friend_id}, function (reply) {
-		el.parentNode.innerHTML = 'request to ' + el.innerHTML + ' has been sent'
+		el.parentNode.innerHTML = 'request to ' + el.dataName + ' has been sent'
 	})
 
 	return false
+}
+
+function redrawFriendsRequestCount() {
+	var el = document.getElementById('friends_badge')
+	if (friendsRequestsCount > 0) {
+		el.innerHTML = friendsRequestsCount
+		el.style.display = ''
+	} else {
+		el.style.display = 'none'
+	}
 }
 
 function confirmFriendshipCallback(ev) {
@@ -29,6 +39,9 @@ function confirmFriendshipCallback(ev) {
 
 	sendReq("REQUEST_CONFIRM_FRIENDSHIP", {FriendId: friend_id}, function (reply) {
 		el.parentNode.innerHTML = 'friendship confirmed'
+
+		friendsRequestsCount--
+		redrawFriendsRequestCount()
 	})
 
 	return false
@@ -37,12 +50,49 @@ function confirmFriendshipCallback(ev) {
 function loadFriends() {
 	sendReq("REQUEST_GET_FRIENDS", {Limit: 50}, function (reply) {
 		var el = document.getElementById('friends')
-		el.innerHTML = '<b>Friends:</b><hr/>'
+		var friends, i, r, div, a
 
-		var friends = reply.Users
-		for (var i = 0; i < friends.length; i++) {
-			var r = friends[i]
-			var div = document.createElement('div')
+		el.innerHTML = ''
+
+		friendsRequestsCount = reply.FriendRequests.length
+		redrawFriendsRequestCount()
+
+		if (friendsRequestsCount > 0) {
+			var b = document.createElement('b')
+			b.appendChild(document.createTextNode('Friends requests:'))
+			el.appendChild(b)
+			el.appendChild(document.createElement('hr'))
+
+			friends = reply.FriendRequests
+			for (i = 0; i < friends.length; i++) {
+				r = friends[i]
+				div = document.createElement('div')
+				div.appendChild(document.createTextNode(r.Name + ' '))
+
+				a = document.createElement('a')
+				a.title = 'Confirm add to friends'
+				a.href = '#confirm_friend_' + r.Id
+				a.id = 'confirm_friend_link_' + r.Id
+				a.appendChild(document.createTextNode('(confirm friendship)'))
+
+				addEv(a, 'click', confirmFriendshipCallback)
+
+				div.appendChild(a)
+				el.appendChild(div)
+			}
+
+			el.appendChild(document.createElement('br'))
+		}
+
+		b = document.createElement('b')
+		b.appendChild(document.createTextNode('Friends:'))
+		el.appendChild(b)
+		el.appendChild(document.createElement('hr'))
+
+		friends = reply.Users
+		for (i = 0; i < friends.length; i++) {
+			r = friends[i]
+			div = document.createElement('div')
 			div.appendChild(document.createTextNode(r.Name))
 			el.appendChild(div)
 		}
@@ -52,7 +102,7 @@ function loadFriends() {
 function loadUsersList() {
 	sendReq("REQUEST_GET_USERS_LIST", {Limit: 50}, function (reply) {
 		var el = document.getElementById('users_list')
-		el.innerHTML = '<b>Add to friends:</b><hr/>'
+		el.innerHTML = '<b>Users:</b><hr/>'
 
 		var users = reply.Users
 		for (var i = 0; i < users.length; i++) {
@@ -62,30 +112,27 @@ function loadUsersList() {
 
 			ulItem.className = 'users_list_item'
 
+			aItem = document.createElement('a')
+			aItem.href = '/profile/' + r.Id
+			addEv(aItem, 'click', function(ev) { changeLocation('Profile', ev.target.href); return false })
+			aItem.appendChild(document.createTextNode(r.Name + ' '))
+			ulItem.appendChild(aItem)
+
 			if (!r.IsFriend) {
 				aItem = document.createElement('a')
 				aItem.title = 'Add to friends'
+				aItem.className = 'add_friends_link'
 				aItem.href = '#add_friend_' + r.Id
 				aItem.id = 'add_friend_link_' + r.Id
-				aItem.appendChild(document.createTextNode(r.Name))
-
+				aItem.dataName = r.Name
+				aItem.appendChild(document.createTextNode('+'))
 				addEv(aItem, 'click', requestAddFriendCallback)
 
 				ulItem.appendChild(aItem)
 			} else if (r.FriendshipConfirmed) {
-				ulItem.appendChild(document.createTextNode(r.Name + ' (friend)'))
+				ulItem.appendChild(document.createTextNode('(friend)'))
 			} else {
-				ulItem.appendChild(document.createTextNode(r.Name + ' '))
-
-				aItem = document.createElement('a')
-				aItem.title = 'Confirm add to friends'
-				aItem.href = '#confirm_friend_' + r.Id
-				aItem.id = 'confirm_friend_link_' + r.Id
-				aItem.appendChild(document.createTextNode('(confirm friendship)'))
-
-				addEv(aItem, 'click', confirmFriendshipCallback)
-
-				ulItem.appendChild(aItem)
+				ulItem.appendChild(document.createTextNode('(wants to become friend)'))
 			}
 
 			el.appendChild(ulItem)

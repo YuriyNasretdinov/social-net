@@ -274,3 +274,16 @@ body{
 	left: 0;
 	z-index: 1001;
 }
+
+.add_friends_link {
+	color: green;
+	padding-right: 5px;
+}
+
+#friends_badge {
+	background: green;
+	color: white;
+	padding: 2px;
+	margin-left: 3px;
+	border-radius: 3px;
+}

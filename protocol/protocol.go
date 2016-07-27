@@ -128,8 +128,7 @@ type (
 	}
 
 	RequestGetProfile struct {
-		UserId   uint64 `json:",string"`
-		Required bool
+		UserId uint64 `json:",string"`
 	}
 
 	RequestUpdateProfile struct {
@@ -155,7 +154,8 @@ type (
 
 	ReplyGetFriends struct {
 		BaseReply
-		Users []JSUserInfo
+		Users          []JSUserInfo
+		FriendRequests []JSUserInfo
 	}
 
 	ReplyGetMessagesUsers struct {

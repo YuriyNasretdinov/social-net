@@ -135,19 +135,31 @@ func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) prot
 		return &protocol.ResponseError{UserMsg: "Limit must be greater than 0"}
 	}
 
-	friendUserIds, err := getUserFriends(ctx.UserId)
+	friendUserIds, err := db.GetUserFriends(ctx.UserId)
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get friends", Err: err}
+	}
+
+	friendRequestUserIds, err := db.GetUserFriendsRequests(ctx.UserId)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not get friends", Err: err}
 	}
 
 	reply := new(protocol.ReplyGetFriends)
 	reply.Users = make([]protocol.JSUserInfo, 0)
+	reply.FriendRequests = make([]protocol.JSUserInfo, 0)
 
 	friendUserIdsStr := make([]string, 0)
 
 	for _, userId := range friendUserIds {
 		userIdStr := fmt.Sprint(userId)
 		reply.Users = append(reply.Users, protocol.JSUserInfo{Id: userIdStr})
+		friendUserIdsStr = append(friendUserIdsStr, userIdStr)
+	}
+
+	for _, userId := range friendRequestUserIds {
+		userIdStr := fmt.Sprint(userId)
+		reply.FriendRequests = append(reply.FriendRequests, protocol.JSUserInfo{Id: userIdStr})
 		friendUserIdsStr = append(friendUserIdsStr, userIdStr)
 	}
 
@@ -158,6 +170,10 @@ func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) prot
 
 	for i, user := range reply.Users {
 		reply.Users[i].Name = userNames[user.Id]
+	}
+
+	for i, user := range reply.FriendRequests {
+		reply.FriendRequests[i].Name = userNames[user.Id]
 	}
 
 	return reply
@@ -250,29 +266,6 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) pr
 	return reply
 }
 
-func getUserFriends(userId uint64) (userIds []uint64, err error) {
-	res, err := db.GetFriendsList.Query(userId)
-	if err != nil {
-		return
-	}
-
-	defer res.Close()
-
-	userIds = make([]uint64, 0)
-
-	for res.Next() {
-		var uid uint64
-		if err = res.Scan(&uid); err != nil {
-			log.Println(err.Error())
-			return
-		}
-
-		userIds = append(userIds, uid)
-	}
-
-	return
-}
-
 func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline) protocol.Reply {
 	var (
 		err error
@@ -283,7 +276,7 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 		return &protocol.ResponseError{UserMsg: "Text must not be empty"}
 	}
 
-	userIds, err := getUserFriends(ctx.UserId)
+	userIds, err := db.GetUserFriends(ctx.UserId)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not get user ids", Err: err}
 	}
@@ -394,7 +387,7 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 		userIds = append(userIds, userId)
 	}
 
-	friendIds, err := getUserFriends(ctx.UserId)
+	friendIds, err := db.GetUserFriends(ctx.UserId)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not get users list for messages", Err: err}
 	}
@@ -424,6 +417,18 @@ func (ctx *WebsocketCtx) ProcessGetMessagesUsers(req *protocol.RequestGetMessage
 func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) protocol.Reply {
 	reply := new(protocol.ReplyGetProfile)
 
+	userIdStr := fmt.Sprint(req.UserId)
+	userNames, err := db.GetUserNames([]string{userIdStr})
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+	}
+
+	if len(userNames) == 0 {
+		return &protocol.ResponseError{UserMsg: "No such user", Err: err}
+	}
+
+	reply.Name = userNames[userIdStr]
+
 	row, err := db.GetProfileStmt.Query(req.UserId)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
@@ -432,11 +437,7 @@ func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) prot
 
 	var birthdate time.Time
 	if !row.Next() {
-		if req.Required {
-			return &protocol.ResponseError{UserMsg: "No such user", Err: err}
-		} else {
-			return reply
-		}
+		return reply
 	}
 
 	err = row.Scan(&reply.Name, &birthdate, &reply.Sex, &reply.Description, &reply.CityId, &reply.FamilyPosition)

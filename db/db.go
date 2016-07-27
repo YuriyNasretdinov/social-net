@@ -34,8 +34,9 @@ var (
 	AddToTimelineStmt   *sql.Stmt
 
 	// Users
-	GetUsersListStmt *sql.Stmt
-	GetFriendsList   *sql.Stmt
+	GetUsersListStmt      *sql.Stmt
+	GetFriendsList        *sql.Stmt
+	GetFriendsRequestList *sql.Stmt
 
 	// Friends
 	AddFriendsRequestStmt *sql.Stmt
@@ -66,6 +67,7 @@ func InitStmts() {
 	LoginStmt = prepareStmt(Db, "SELECT id, password, name FROM socialuser WHERE email = $1")
 	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name) VALUES($1, $2, $3) RETURNING id")
 	GetFriendsList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = true`)
+	GetFriendsRequestList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = false`)
 
 	GetMessagesStmt = prepareStmt(Db, `SELECT id, message, ts, is_out
 		FROM messages
@@ -173,4 +175,35 @@ func GetCityInfoByName(name string) (*City, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+func GetUserFriends(userId uint64) (userIds []uint64, err error) {
+	return getUsersByStmt(userId, GetFriendsList)
+}
+
+func GetUserFriendsRequests(userId uint64) (userIds []uint64, err error) {
+	return getUsersByStmt(userId, GetFriendsRequestList)
+}
+
+func getUsersByStmt(userId uint64, stmt *sql.Stmt) (userIds []uint64, err error) {
+	res, err := stmt.Query(userId)
+	if err != nil {
+		return
+	}
+
+	defer res.Close()
+
+	userIds = make([]uint64, 0)
+
+	for res.Next() {
+		var uid uint64
+		if err = res.Scan(&uid); err != nil {
+			log.Println(err.Error())
+			return
+		}
+
+		userIds = append(userIds, uid)
+	}
+
+	return
 }

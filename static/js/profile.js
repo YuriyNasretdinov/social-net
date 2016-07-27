@@ -20,7 +20,7 @@ loaders["profile"] = loadProfile
 function loadProfile() {
 	var location_parts = ("" + location.pathname).split(/\//g)
 	if (location_parts[2]) {
-		sendReq("REQUEST_GET_PROFILE", {UserId: location_parts[2], Required: true}, function(reply) {
+		sendReq("REQUEST_GET_PROFILE", {UserId: location_parts[2]}, function(reply) {
 			function inp(name, title, value) {
 				return "<tr><td><b>" + (title || name) + "</b></td>" +
 					"<td>" + htmlspecialchars(value || reply[name]) + "</td></tr>"

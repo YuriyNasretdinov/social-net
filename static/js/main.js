@@ -275,6 +275,7 @@ function setUpPage() {
 	ShowCurrent()
 
 	ShowTimeline()
+	redrawFriendsRequestCount()
 
 	document.getElementById('loading').style.display = 'none'
 	document.getElementById('loading_overlay').style.display = 'none'
