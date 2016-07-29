@@ -66,11 +66,12 @@ type (
 	}
 
 	Message struct {
-		Id       uint64
-		UserFrom string
-		Ts       string
-		IsOut    bool
-		Text     string
+		Id           uint64
+		UserFrom     string
+		UserFromName string
+		Ts           string
+		IsOut        bool
+		Text         string
 	}
 
 	TimelineMessage struct {

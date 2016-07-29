@@ -110,7 +110,7 @@ function showMessagesResponse(id, reply, erase) {
 
 function onNewMessage(msg) {
 	if (msg.UserFrom != msgCurUser) {
-		// TODO: show messages from different users
+        showNotification("Message from " + msg.UserFromName + ":\n" + msg.Text)
 		console.log("Received message: ", msg)
 		console.log("UserFrom: ", msg.UserFrom, ", msgCurUser: ", msgCurUser)
 		return

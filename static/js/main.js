@@ -116,6 +116,14 @@ function showError(msg) {
 	setTimeout(function() { el.style.display = 'none' }, 2000)
 }
 
+function showNotification(msg) {
+	var el = document.getElementById('notification')
+	el.style.display = ''
+	el.innerHTML = ''
+	el.appendChild(document.createTextNode(msg))
+	setTimeout(function() { el.style.display = 'none' }, 5000)
+}
+
 function onMessage(evt) {
 	var reply = JSON.parse(evt.data)
 	if (reply.Type == 'EVENT_ONLINE_USERS_LIST') {
@@ -130,6 +138,9 @@ function onMessage(evt) {
 		onNewMessage(reply)
 	} else if (reply.Type == 'EVENT_NEW_TIMELINE_EVENT') {
 		onNewTimelineEvent(reply)
+	} else if (reply.Type == 'EVENT_FRIEND_REQUEST') {
+        friendsRequestsCount++
+        redrawFriendsRequestCount()
 	} else {
 		if (!rcvCallbacks[reply.SeqId]) {
 			console.log("Received response for missing seqid")

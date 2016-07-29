@@ -255,6 +255,20 @@ body{
 	border-radius: 3px;
 }
 
+.notification {
+	background-color: #3498db;
+	color: #fff;
+	position: fixed;
+	bottom: 70px;
+	text-align: left;
+	padding: 10px 15px;
+	right: 100px;
+	z-index: 1000;
+	border-radius: 3px;
+    white-space: pre;
+}
+
+
 #loading {
 	width: 100vw;
 	height: 100vh;

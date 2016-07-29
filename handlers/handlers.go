@@ -256,10 +256,11 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) pr
 		EvType:   events.EVENT_NEW_MESSAGE,
 		Listener: ctx.Listener,
 		Info: &events.InternalEventNewMessage{
-			UserFrom: ctx.UserId,
-			UserTo:   req.UserTo,
-			Ts:       fmt.Sprint(now),
-			Text:     req.Text,
+			UserFrom:     ctx.UserId,
+			UserFromName: ctx.UserName,
+			UserTo:       req.UserTo,
+			Ts:           fmt.Sprint(now),
+			Text:         req.Text,
 		},
 	}
 
@@ -327,6 +328,16 @@ func (ctx *WebsocketCtx) ProcessAddFriend(req *protocol.RequestAddFriend) protoc
 
 	if _, err = db.AddFriendsRequestStmt.Exec(friendId, ctx.UserId, 0); err != nil {
 		return &protocol.ResponseError{UserMsg: "Could not add user as a friend", Err: err}
+	}
+
+	ev := &events.EventFriendRequest{}
+	ev.UserId = friendId
+	ev.Type = "EVENT_FRIEND_REQUEST"
+
+	events.EventsFlow <- &events.ControlEvent{
+		EvType:   events.EVENT_FRIEND_REQUEST,
+		Listener: ctx.Listener,
+		Reply:    ev,
 	}
 
 	reply := new(protocol.ReplyGeneric)
