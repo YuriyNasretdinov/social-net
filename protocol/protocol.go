@@ -9,21 +9,34 @@ const (
 	REQUEST_ADD_FRIEND
 	REQUEST_CONFIRM_FRIENDSHIP
 	REQUEST_GET_MESSAGES_USERS
+	REQUEST_GET_FRIENDS
+	REQUEST_GET_PROFILE
+	REQUEST_UPDATE_PROFILE
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
 	REPLY_GENERIC
 	REPLY_GET_TIMELINE
 	REPLY_GET_MESSAGES_USERS
+	REPLY_GET_FRIENDS
+	REPLY_GET_PROFILE
 
 	MAX_MESSAGES_LIMIT   = 100
 	MAX_TIMELINE_LIMIT   = 100
 	MAX_USERS_LIST_LIMIT = 100
+	MAX_FRIENDS_LIMIT    = 100
 
 	MSG_TYPE_OUT = true
 	MSG_TYPE_IN  = false
+
+	SEX_TYPE_MALE   = 1
+	SEX_TYPE_FEMALE = 2
+
+	FAMILY_POSITION_SINGLE  = 1
+	FAMILY_POSITION_MARRIED = 2
 )
 
+// Request types
 type (
 	JSUserInfo struct {
 		Name string
@@ -47,12 +60,18 @@ type (
 		Type  string
 	}
 
+	Reply interface {
+		SetSeqId(int)
+		SetReplyType(string)
+	}
+
 	Message struct {
-		Id       uint64
-		UserFrom string
-		Ts       string
-		IsOut    bool
-		Text     string
+		Id           uint64
+		UserFrom     string
+		UserFromName string
+		Ts           string
+		IsOut        bool
+		Text         string
 	}
 
 	TimelineMessage struct {
@@ -64,6 +83,7 @@ type (
 	}
 
 	ResponseError struct {
+		BaseReply
 		UserMsg string
 		Err     error
 	}
@@ -104,14 +124,39 @@ type (
 		Limit uint64
 	}
 
-	ReplyGetMessages struct {
+	RequestGetFriends struct {
+		Limit uint64
+	}
+
+	RequestGetProfile struct {
+		UserId uint64 `json:",string"`
+	}
+
+	RequestUpdateProfile struct {
+		Name           string
+		Birthdate      string
+		Sex            int
+		CityName       string
+		FamilyPosition int
+	}
+)
+
+// Reply types
+type (
+	ReplyMessagesList struct {
 		BaseReply
 		Messages []Message
 	}
 
-	ReplyGetUsersList struct {
+	ReplyUsersList struct {
 		BaseReply
 		Users []JSUserListInfo
+	}
+
+	ReplyGetFriends struct {
+		BaseReply
+		Users          []JSUserInfo
+		FriendRequests []JSUserInfo
 	}
 
 	ReplyGetMessagesUsers struct {
@@ -124,6 +169,17 @@ type (
 		Messages []TimelineMessage
 	}
 
+	ReplyGetProfile struct {
+		BaseReply
+		Name           string
+		Birthdate      string
+		Sex            int
+		Description    string
+		CityId         uint64 `json:",string"`
+		CityName       string
+		FamilyPosition int
+	}
+
 	ReplyGeneric struct {
 		BaseReply
 		Success bool
@@ -134,3 +190,11 @@ type (
 		Message string
 	}
 )
+
+func (p *BaseReply) SetSeqId(id int) {
+	p.SeqId = id
+}
+
+func (p *BaseReply) SetReplyType(t string) {
+	p.Type = t
+}

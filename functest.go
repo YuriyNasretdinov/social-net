@@ -126,7 +126,7 @@ func (p *TestConn) callMethod(msg, respMsg string, req, resp interface{}) error 
 }
 
 func testGetMessages(p *TestConn) {
-	var reply protocol.ReplyGetMessages
+	var reply protocol.ReplyMessagesList
 
 	log.Printf("Testing get messages")
 

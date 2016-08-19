@@ -15,6 +15,7 @@ const (
 	EVENT_USER_REPLY
 	EVENT_NEW_MESSAGE
 	EVENT_NEW_TIMELINE_EVENT
+	EVENT_FRIEND_REQUEST
 )
 
 type (
@@ -49,11 +50,17 @@ type (
 		protocol.Message
 	}
 
+	EventFriendRequest struct {
+		BaseEvent
+		UserId uint64 `json:",string"`
+	}
+
 	InternalEventNewMessage struct {
-		UserFrom uint64
-		UserTo   uint64
-		Ts       string
-		Text     string
+		UserFrom     uint64
+		UserFromName string
+		UserTo       uint64
+		Ts           string
+		Text         string
 	}
 
 	EventNewTimelineStatus struct {
@@ -62,10 +69,11 @@ type (
 	}
 
 	InternalEventNewTimelineStatus struct {
-		UserId   uint64
-		UserName string
-		Ts       string
-		Text     string
+		UserId        uint64
+		FriendUserIds []uint64
+		UserName      string
+		Ts            string
+		Text          string
 	}
 )
 
@@ -170,6 +178,7 @@ func handleNewMessage(listenerMap map[chan interface{}]*session.SessionInfo, use
 			toEv := new(EventNewMessage)
 			*toEv = *event
 			toEv.UserFrom = fmt.Sprint(sourceEvent.UserFrom)
+			toEv.UserFromName = sourceEvent.UserFromName
 			toEv.IsOut = protocol.MSG_TYPE_IN
 			select {
 			case listener <- toEv:
@@ -186,17 +195,24 @@ func handleNewTimelineEvent(listenerMap map[chan interface{}]*session.SessionInf
 		return
 	}
 
-	for listener := range listenerMap {
-		userEv := new(EventNewTimelineStatus)
-		userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
-		userEv.Ts = evInfo.Ts
-		userEv.UserId = fmt.Sprint(evInfo.UserId)
-		userEv.Text = evInfo.Text
-		userEv.UserName = evInfo.UserName
+	for _, friendUserId := range evInfo.FriendUserIds {
+		listeners := userListeners[friendUserId]
+		if listeners == nil {
+			continue
+		}
 
-		select {
-		case listener <- userEv:
-		default:
+		for listener := range listeners {
+			userEv := new(EventNewTimelineStatus)
+			userEv.Type = "EVENT_NEW_TIMELINE_EVENT"
+			userEv.Ts = evInfo.Ts
+			userEv.UserId = fmt.Sprint(evInfo.UserId)
+			userEv.Text = evInfo.Text
+			userEv.UserName = evInfo.UserName
+
+			select {
+			case listener <- userEv:
+			default:
+			}
 		}
 	}
 }
@@ -222,6 +238,14 @@ func EventsDispatcher() {
 			select {
 			case ev.Listener <- ev.Reply:
 			default:
+			}
+		} else if ev.EvType == EVENT_FRIEND_REQUEST {
+			reply := ev.Reply.(*EventFriendRequest)
+			for listener := range userListeners[reply.UserId] {
+				select {
+				case listener <- reply:
+				default:
+				}
 			}
 		}
 	}

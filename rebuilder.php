@@ -1,6 +1,7 @@
 <?php
-$pp = popen(__DIR__ . '/notify-' . strtolower(PHP_OS) . ' ' . __DIR__, 'r');
-$cmd = "exec ./social-net";
+$pp = popen('echo Start && ' . __DIR__ . '/notify-' . strtolower(PHP_OS) . ' ' . __DIR__, 'r');
+$prog = getenv("GOPATH") . "/bin/social-net";
+$cmd = "exec " . $prog;
 $ph = proc_open($cmd, array(STDIN, STDOUT, STDERR), $pipes);;
 register_shutdown_function(function() { global $pp, $ph; proc_terminate($ph); pclose($pp); });
 
@@ -10,7 +11,7 @@ while (true) {
 
 	echo "\nBuilding...\n";
 	$start = microtime(true);
-	system("go build", $retval);
+	system("go install -v && sudo setcap 'cap_net_bind_service=+ep' " . $prog, $retval);
 	echo "Done in " . round(microtime(true) - $start, 2) . " sec\n\n";
 	if ($retval == 0) {
 		echo "Success!\n";

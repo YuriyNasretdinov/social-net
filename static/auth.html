@@ -2,22 +2,26 @@
 <html lang="ru">
 <head>
 	<title>Social network (authorized)</title>
-	<link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+	<!--<link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>-->
 	<link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
+	<div id="loading"></div>
+	<div id="loading_overlay">Loading...</div>
 	<div class="header-wrapper">
 		<div class="container">
 			<ul>
 				<li><a href="/timeline/" id="timeline_link">Timeline</a></li>
+				<li><a href="/profile/" id="profile_link">Profile</a></li>
 				<li><a href="/messages/" id="messages_link">Messages</a></li>
-				<li><a href="/friends/" id="friends_link">Friends</a></li>
+				<li><a href="/friends/" id="friends_link">Friends<span id="friends_badge" style="display: none;"></span></a></li>
 				<li><a href="/users_list/" id="users_list_link">Users</a></li>
 			</ul>
 			<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
 		</div>
 	</div>
 	<div class="error_text" id="error_text" style="display: none;"></div>
+	<div class="notification" id="notification" style="display: none;"></div>
 
 	<div class="onlines" id="online_users">
 		online users
@@ -34,36 +38,36 @@
 				<div class="message_form">
 	                <b>Write message:</b>
 	                <textarea id="msg"></textarea>
-	                <button>Отправить</button>
+	                <button id="send_msg">Send</button>
 				</div>
 			</div>
-			
 		</div>
         <div class="timeline" id="timeline">
-
             <div class="timeline_form">
-                <b>How you are feeling tody?</b>
+                <b>How you are feeling today?</b>
                 <textarea id="timeline_msg"></textarea>
-                <button>Отправить</button>
+                <button id="send_timeline_msg">Send</button>
             </div>
 
             <div class="timeline_texts" id="timeline_texts">
-
             </div>
         </div>
-		<div class="friends" id="friends">
+		<div class="friends" id="friends"><!--
             <div class="friend">Friend1</div>
-        </div>
-        <div class="users_list" id="users_list">
+        --></div>
+        <div class="users_list" id="users_list"><!--
             <div class="users_list_item">User1</div>
-        </div>
+        --></div>
+		<div class="profile" id="profile"></div>
 	</div>
 	<script type="text/javascript" src="/static/js/main.js"></script>
 	<script type="text/javascript" src="/static/js/messages.js"></script>
 	<script type="text/javascript" src="/static/js/timeline.js"></script>
 	<script type="text/javascript" src="/static/js/friends.js"></script>
+	<script type="text/javascript" src="/static/js/profile.js"></script>
 	<script>
-        var ourUserId = {{.Id}};
+        var ourUserId = "{{.Id}}";
+		var friendsRequestsCount = parseInt("{{.FriendsRequestsCount}}");
 		setWebsocketConnection();
 		setUpPage();
 	</script>

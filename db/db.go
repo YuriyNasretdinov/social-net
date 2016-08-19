@@ -6,6 +6,15 @@ import (
 	"strings"
 )
 
+type (
+	City struct {
+		Id   uint64
+		Name string
+		Lon  float64
+		Lat  float64
+	}
+)
+
 var (
 	Db *sql.DB
 
@@ -25,12 +34,23 @@ var (
 	AddToTimelineStmt   *sql.Stmt
 
 	// Users
-	GetUsersListStmt *sql.Stmt
-	GetFriendsList   *sql.Stmt
+	GetUsersListStmt      *sql.Stmt
+	GetFriendsList        *sql.Stmt
+	GetFriendsRequestList *sql.Stmt
 
 	// Friends
 	AddFriendsRequestStmt *sql.Stmt
 	ConfirmFriendshipStmt *sql.Stmt
+
+	// Profile
+	GetProfileStmt    *sql.Stmt
+	AddProfileStmt    *sql.Stmt
+	UpdateProfileStmt *sql.Stmt
+
+	// City
+	GetCityInfoStmt       *sql.Stmt
+	GetCityInfoByNameStmt *sql.Stmt
+	AddCityStmt           *sql.Stmt
 )
 
 func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
@@ -46,7 +66,8 @@ func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
 func InitStmts() {
 	LoginStmt = prepareStmt(Db, "SELECT id, password, name FROM socialuser WHERE email = $1")
 	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name) VALUES($1, $2, $3) RETURNING id")
-	GetFriendsList = prepareStmt(Db, `SELECT id FROM socialuser`)
+	GetFriendsList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = true`)
+	GetFriendsRequestList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = false`)
 
 	GetMessagesStmt = prepareStmt(Db, `SELECT id, message, ts, is_out
 		FROM messages
@@ -91,6 +112,23 @@ func InitStmts() {
 		FROM socialuser AS u
 		ORDER BY id
 		LIMIT $1`)
+
+	GetProfileStmt = prepareStmt(Db, `SELECT
+			name, birthdate, sex, description, city_id, family_position
+		FROM userinfo
+		WHERE user_id = $1`)
+
+	AddProfileStmt = prepareStmt(Db, `INSERT INTO userinfo
+			(user_id, name, birthdate, sex, description, city_id, family_position)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+
+	UpdateProfileStmt = prepareStmt(Db, `UPDATE userinfo SET
+			name = $1, birthdate = $2, sex = $3, description = $4, city_id = $5, family_position = $6
+			WHERE user_id = $7`)
+
+	GetCityInfoStmt = prepareStmt(Db, `SELECT name, lon, lat FROM city WHERE id = $1`)
+	GetCityInfoByNameStmt = prepareStmt(Db, `SELECT id, name, lon, lat FROM city WHERE name = $1`)
+	AddCityStmt = prepareStmt(Db, `INSERT INTO city(name, lon, lat) VALUES($1, $2, $3) RETURNING id`)
 }
 
 // user id is string for simplicity
@@ -116,4 +154,56 @@ func GetUserNames(userIds []string) (map[string]string, error) {
 	}
 
 	return userNames, nil
+}
+
+func GetCityInfo(id uint64) (*City, error) {
+	res := new(City)
+	res.Id = id
+	row := GetCityInfoStmt.QueryRow(res.Id)
+	err := row.Scan(&res.Name, &res.Lon, &res.Lat)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func GetCityInfoByName(name string) (*City, error) {
+	res := new(City)
+	row := GetCityInfoByNameStmt.QueryRow(name)
+	err := row.Scan(&res.Id, &res.Name, &res.Lon, &res.Lat)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func GetUserFriends(userId uint64) (userIds []uint64, err error) {
+	return getUsersByStmt(userId, GetFriendsList)
+}
+
+func GetUserFriendsRequests(userId uint64) (userIds []uint64, err error) {
+	return getUsersByStmt(userId, GetFriendsRequestList)
+}
+
+func getUsersByStmt(userId uint64, stmt *sql.Stmt) (userIds []uint64, err error) {
+	res, err := stmt.Query(userId)
+	if err != nil {
+		return
+	}
+
+	defer res.Close()
+
+	userIds = make([]uint64, 0)
+
+	for res.Next() {
+		var uid uint64
+		if err = res.Scan(&uid); err != nil {
+			log.Println(err.Error())
+			return
+		}
+
+		userIds = append(userIds, uid)
+	}
+
+	return
 }

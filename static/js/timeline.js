@@ -1,5 +1,7 @@
 var DEFAULT_TIMELINE_LIMIT = 10
 
+loaders["timeline"] = function() {}
+
 function SetUpTimelinePage() {
 	addEv("timeline_link", "click", function(ev) {
 		changeLocation("Timeline", "/timeline/")
@@ -10,7 +12,14 @@ function SetUpTimelinePage() {
 		if (ev.keyCode == 13) {
 			addToTimeline(ev.target.value)
 			ev.target.value = ''
+			return false
 		}
+	})
+
+	addEv("send_timeline_msg", "click", function(ev) {
+		var el = document.getElementById("timeline_msg")
+		addToTimeline(el.value)
+		el.value = ''
 	})
 }
 

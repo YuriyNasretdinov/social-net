@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	_ "github.com/cockroachdb/cockroach-go/crdb"
 
@@ -125,7 +126,23 @@ func passwordHash(password string) string {
 	return fmt.Sprintf("%x:%x", sh.Sum(nil), md.Sum(nil))
 }
 
-func serveAuthPage(info *session.SessionInfo, w http.ResponseWriter) {
+func serveAuthPage(sessionInfo *session.SessionInfo, w http.ResponseWriter) {
+	info := new(struct {
+		session.SessionInfo
+		FriendsRequestsCount int
+	})
+
+	info.Id = sessionInfo.Id
+	info.Name = sessionInfo.Name
+	info.FriendsRequestsCount = 0
+
+	friendsReqs, err := db.GetUserFriendsRequests(sessionInfo.Id)
+	if err != nil {
+		log.Println("Could not get friends requests: ", err.Error())
+	} else {
+		info.FriendsRequestsCount = len(friendsReqs)
+	}
+
 	if err := authTpl.Execute(w, info); err != nil {
 		fmt.Println("Could not render template: " + err.Error())
 	}
@@ -177,6 +194,20 @@ func convertUnderscoreToCamelCase(in string) string {
 		out = append(out, strings.ToUpper(v[0:1]), strings.ToLower(v[1:]))
 	}
 	return strings.Join(out, "")
+}
+
+// ReplyGetMessages => REPLY_GET_MESSAGES
+func convertCamelCaseToUnderscore(in string) string {
+	out := make([]rune, 0)
+
+	for _, c := range in {
+		if unicode.IsUpper(c) && len(out) > 0 {
+			out = append(out, '_')
+		}
+		out = append(out, unicode.ToUpper(c))
+	}
+
+	return string(out)
 }
 
 func WebsocketEventsHandler(ws *websocket.Conn) {
@@ -267,14 +298,20 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 
 			switch v := resp.(type) {
 			case *protocol.ResponseError:
-				log.Println(reqCamel, ":", v.Err.Error())
+				if v.Err != nil {
+					log.Println(reqCamel, ":", v.Err.Error())
+				}
 				sendError(seqId, recvChan, v.UserMsg)
-			default:
+			case protocol.Reply:
+				v.SetSeqId(seqId)
+				v.SetReplyType(convertCamelCaseToUnderscore(strings.SplitN(fmt.Sprintf("%T", v), ".", 2)[1]))
 				events.EventsFlow <- &events.ControlEvent{
 					EvType:   events.EVENT_USER_REPLY,
 					Listener: recvChan,
 					Reply:    v,
 				}
+			default:
+				log.Panicf("Got %T that does not satisfy protocol.Reply", v)
 			}
 		}
 	}()

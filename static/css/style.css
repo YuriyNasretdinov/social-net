@@ -50,6 +50,11 @@ body{
 	font-size: 12px;
 }
 
+#status {
+	font-size: 30px;
+	vertical-align: middle;
+}
+
 .container{
 	width: 960px;
 	margin: 0 auto;
@@ -66,6 +71,10 @@ body{
 	border-left: 1px black solid;
     z-index: 2;
     background: white;
+}
+
+.current_tab {
+	font-weight: bold;
 }
 
 .left_menu {
@@ -87,6 +96,8 @@ body{
 
 #messages_show_more, #timeline_show_more {
 	cursor: pointer;
+	padding: 10px;
+	font-size: 20px;
 }
 
 .message {
@@ -179,11 +190,11 @@ body{
 
 .timeline_event {
 	width: 590px;
-	min-height: 40px;
+	min-height: 18px;
 	background-color: #fff;
 	border-radius: 3px;
 	padding: 10px;
-	margin-top: 10px;
+	margin-top: 5px;
 }
 
 /* Timeline */
@@ -233,14 +244,60 @@ body{
 }
 
 .error_text {
-	background-color: #3498db;
+	background-color: #db364c;
 	color: #fff;
 	position: fixed;
 	top: 70px;
 	text-align: center;
-	z-index: 1;
 	padding: 10px 15px;
 	left: 10px;
 	z-index: 1000;
+	border-radius: 3px;
+}
+
+.notification {
+	background-color: #3498db;
+	color: #fff;
+	position: fixed;
+	bottom: 70px;
+	text-align: left;
+	padding: 10px 15px;
+	right: 100px;
+	z-index: 1000;
+	border-radius: 3px;
+    white-space: pre;
+}
+
+
+#loading {
+	width: 100vw;
+	height: 100vh;
+	position: absolute;
+	z-index: 1000;
+	top: 0;
+	left: 0;
+	opacity: 0.5;
+	background: #ccc;
+}
+
+#loading_overlay {
+	width: 100vw;
+	text-align: center;
+	position: absolute;
+	top: 50vh;
+	left: 0;
+	z-index: 1001;
+}
+
+.add_friends_link {
+	color: green;
+	padding-right: 5px;
+}
+
+#friends_badge {
+	background: green;
+	color: white;
+	padding: 2px;
+	margin-left: 3px;
 	border-radius: 3px;
 }
