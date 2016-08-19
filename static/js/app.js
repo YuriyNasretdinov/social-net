@@ -46,7 +46,7 @@
 		ws: null,
 
 		init: function () {
-			ws = new WebSocket( 'ws://' + window.location.host + "/events" );
+			var ws = new WebSocket( 'ws://' + window.location.host + "/events" );
 			
 			ws.onopen = function () {
 				console.log( 'Connection open' );
@@ -120,13 +120,13 @@
 				}
 			};
 
-			this.ws = ws;
+			wSocket.ws = ws;
 		},
 
 		send: function ( reqType, reqData, callback ) {
 			var cb = function () {
 				var msg = reqType + " " + seqId + "\n" + JSON.stringify( reqData );
-				this.ws.send( msg );
+				wSocket.ws.send( msg );
 				window.callbacks[seqId] = callback;
 				seqId++;
 			}
