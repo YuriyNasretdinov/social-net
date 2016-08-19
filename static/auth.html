@@ -1,40 +1,84 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+	<meta charset="UTF-8">
 	<title>Social network (authorized)</title>
-	<!--<link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>-->
 	<link rel="stylesheet" href="/static/css/style.css" />
+	<script>
+        var ourUserId = "{{.Id}}";
+		var friendsRequestsCount = parseInt("{{.FriendsRequestsCount}}");
+	</script>
 </head>
 <body>
-	<div id="loading"></div>
-	<div id="loading_overlay">Loading...</div>
 	<div class="header-wrapper">
 		<div class="container">
 			<ul>
-				<li><a href="/timeline/" id="timeline_link">Timeline</a></li>
-				<li><a href="/profile/" id="profile_link">Profile</a></li>
-				<li><a href="/messages/" id="messages_link">Messages</a></li>
-				<li><a href="/friends/" id="friends_link">Friends<span id="friends_badge" style="display: none;"></span></a></li>
-				<li><a href="/users_list/" id="users_list_link">Users</a></li>
+				<li><a href="#/">Timeline</a></li>
+				<li><a href="#/profile/{{.Id}}">Profile</a></li>
+				<li><a href="#/messages">Messages</a></li>
+				<li><a href="#/friends">Friends <span id="friends_badge" style="display: none;"></span></a></li>
+				<li><a href="#/users">Users</a></li>
+				<li><a href="#/settings">Settings</a></li>
 			</ul>
 			<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
 		</div>
 	</div>
-	<div class="error_text" id="error_text" style="display: none;"></div>
-	<div class="notification" id="notification" style="display: none;"></div>
+
+	<div id="content" class="container"></div>
 
 	<div class="onlines" id="online_users">
 		online users
+		<div id="online-data"></div>
 	</div>
-	<div class="content">
+
+	<div class="error_text" id="error_text" style="display: none;"></div>
+	<div class="notification" id="notification" style="display: none;"></div>
+
+	<script type="text/template" id="TimelineTemplate">
+		<div class="timeline_form">
+            <b>How you are feeling today?</b>
+            <textarea id="timeline_msg"></textarea>
+            <button id="send_timeline_msg">Send</button>
+        </div>
+        <div class="timeline_texts" id="timeline_texts">
+			<% _.each( messages, function ( item ) { %>
+				<div class="timeline_event">
+					<div class="timeline_username"><%- item.UserName %></div>
+					<div class="timeline_msg"><%- item.Text %></div>
+				</div>
+			<% }); %>
+			<% if ( loader ) { %>
+				<div id="timeline_show_more">...</div>
+			<% } %>
+		</div>
+	</script>
+
+	<script type="text/template" id="ProfileTemplate">
+		<div><b>Name:</b> <%- profile.Name %></div>
+		<div><b>City:</b> <%- profile.CityName %></div>
+		<div><b>Birthdate:</b> <%- profile.Birthdate %></div>
+		<div><b>Position:</b> <%- profile.FamilyPosition %></div>
+		<div><b>Sex:</b> <%- profile.Sex %></div>
+	</script>
+
+	<script type="text/template" id="MessagesTemplate">
 		<div class="messages" id="messages">
 			<div class="users" id="users">
-				<!--<div class="user">
-					userName1
-				</div>
-			--></div>
+				<% _.each( users, function ( item ) { %>
+					<a class="user" href="#/messages/<%= item.Id%>">
+						<span><%- item.Name%></span>
+					</a>
+				<% }); %>
+			</div>
 			<div class="messages_texts" id="messages_texts">
-				<div id="message-content"></div>
+				<div id="message-content">
+					<% if ( loader ) { %>
+						<div id="messages_show_more">...</div>
+					<% } %>
+					<% _.each( messages, function ( item ) { %>
+						<div class="message <% if ( item.IsOut ) { %>message_out<% } else { %>message_in<% } %>"><%- item.Text %></div>
+					<% }); %>
+				</div>
 				<div class="message_form">
 	                <b>Write message:</b>
 	                <textarea id="msg"></textarea>
@@ -42,34 +86,67 @@
 				</div>
 			</div>
 		</div>
-        <div class="timeline" id="timeline">
-            <div class="timeline_form">
-                <b>How you are feeling today?</b>
-                <textarea id="timeline_msg"></textarea>
-                <button id="send_timeline_msg">Send</button>
-            </div>
-
-            <div class="timeline_texts" id="timeline_texts">
-            </div>
-        </div>
-		<div class="friends" id="friends"><!--
-            <div class="friend">Friend1</div>
-        --></div>
-        <div class="users_list" id="users_list"><!--
-            <div class="users_list_item">User1</div>
-        --></div>
-		<div class="profile" id="profile"></div>
-	</div>
-	<script type="text/javascript" src="/static/js/main.js"></script>
-	<script type="text/javascript" src="/static/js/messages.js"></script>
-	<script type="text/javascript" src="/static/js/timeline.js"></script>
-	<script type="text/javascript" src="/static/js/friends.js"></script>
-	<script type="text/javascript" src="/static/js/profile.js"></script>
-	<script>
-        var ourUserId = "{{.Id}}";
-		var friendsRequestsCount = parseInt("{{.FriendsRequestsCount}}");
-		setWebsocketConnection();
-		setUpPage();
 	</script>
+
+	<script type="text/template" id="FriendsTemplate">
+		<% if ( friends_request.length > 0 ) { %>
+			<b>Friends requests:</b><hr>
+			<% _.each( friends_request, function ( item ) { %>
+				<div>
+					<a href="#/profile/<%- item.Id%>"><%- item.Name%></a>
+					<button class="request-friends" data-id="<%-item.Id%>">(confirm friendship)</button>
+				</div>
+			<% }); %>
+			<br>
+		<% } %>
+		<b>Friends:</b><hr>
+		<% _.each( friends, function ( item ) { %>
+			<div><a href="#/profile/<%- item.Id%>"><%- item.Name%></a></div>
+		<% }); %>
+	</script>
+
+	<script type="text/template" id="UsersTemplate">
+		<b>Users:</b><hr>
+		<% _.each( users, function ( item ) { %>
+			<div>
+				<a href="#/profile/<%- item.Id%>"><%- item.Name%></a>
+				<% if ( !item.IsFriend ) { %>
+					<button class="add-friends" data-id="<%- item.Id%>">+</button>
+				<% } else if ( item.FriendshipConfirmed ) { %>
+					<span>(friend)</span>
+				<% } else { %>
+					<span>(wants to become friend)</span>
+				<% } %>
+			</div>
+		<% }); %>
+	</script>
+
+	<script type="text/template" id="SettingsTemplate">
+		<h4>Profile settings:</h4><hr>
+		<div id="settings-form">
+			<label for="Name">Name</label>
+			<input type="text" value="<%- Name %>" id="Name"><br>
+			<label for="Birthdate">Birthdate</label>
+			<input type="text" value="<%- Birthdate%>" id="Birthdate"><br>
+			<label for="Sex">Sex</label>
+			<select id="Sex">
+				<option value="1" <% if ( FamilyPosition == 1 ) { %>selected<%}%>>Male</option>
+				<option value="2" <% if ( FamilyPosition == 2 ) { %>selected<%}%>>Female</option>
+			</select><br>
+			<label for="City">City</label>
+			<input type="text" value="<%- CityName%>" id="City"><br>
+			<label for="Position">Position</label>
+			<select id="Position">
+				<option value="1" <% if ( Sex == 1 ) { %>selected<%}%>>Single</option>
+				<option value="2" <% if ( Sex == 2 ) { %>selected<%}%>>Married</option>
+			</select><br>
+			<button id="profile-save">Save</button>
+		</div>
+	</script>
+
+	<script type="text/javascript" src="/static/js/jquery-1.12.4.min.js"></script>
+	<script type="text/javascript" src="/static/js/underscore-min.js"></script>
+	<script type="text/javascript" src="/static/js/backbone-min.js"></script>
+	<script type="text/javascript" src="/static/js/app.js"></script>
 </body>
 </html>
