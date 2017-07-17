@@ -36,6 +36,7 @@ var (
 	// Users
 	GetUsersListStmt      *sql.Stmt
 	GetFriendsList        *sql.Stmt
+	GetFriendsCount       *sql.Stmt
 	GetFriendsRequestList *sql.Stmt
 
 	// Friends
@@ -65,8 +66,9 @@ func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
 //language=PostgreSQL
 func InitStmts() {
 	LoginStmt = prepareStmt(Db, "SELECT id, password, name FROM socialuser WHERE email = $1")
-	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name) VALUES($1, $2, $3) RETURNING id")
+	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name, have_avatar) VALUES($1, $2, $3, false) RETURNING id")
 	GetFriendsList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = true`)
+	GetFriendsCount = prepareStmt(Db, `SELECT COUNT(*) FROM friend WHERE user_id = $1 AND request_accepted = true`)
 	GetFriendsRequestList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = false`)
 
 	GetMessagesStmt = prepareStmt(Db, `SELECT id, message, ts, is_out
@@ -110,8 +112,9 @@ func InitStmts() {
 	GetUsersListStmt = prepareStmt(Db, `SELECT
 			u.name, u.id
 		FROM socialuser AS u
+		WHERE id > $1
 		ORDER BY id
-		LIMIT $1`)
+		LIMIT $2`)
 
 	GetProfileStmt = prepareStmt(Db, `SELECT
 			name, birthdate, sex, description, city_id, family_position
@@ -175,6 +178,11 @@ func GetCityInfoByName(name string) (*City, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+func GetUserFriendsCount(userId uint64) (cnt uint64, err error) {
+	err = GetFriendsCount.QueryRow(userId).Scan(&cnt)
+	return
 }
 
 func GetUserFriends(userId uint64) (userIds []uint64, err error) {

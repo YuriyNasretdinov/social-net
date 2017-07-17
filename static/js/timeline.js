@@ -35,7 +35,7 @@ function createTimelineEl(msg) {
 
 	var userNameEl = document.createElement('div')
 	userNameEl.className = 'timeline_username'
-	userNameEl.appendChild(document.createTextNode(msg.UserName))
+	userNameEl.appendChild(profileLink(msg.UserId, msg.UserName))
 
 	var messageEl = document.createElement('div')
 	messageEl.className = 'timeline_msg'

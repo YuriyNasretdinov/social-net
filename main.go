@@ -13,13 +13,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
-
-	_ "github.com/cockroachdb/cockroach-go/crdb"
 
 	"github.com/YuriyNasretdinov/social-net/config"
 	"github.com/YuriyNasretdinov/social-net/db"
@@ -27,6 +26,7 @@ import (
 	"github.com/YuriyNasretdinov/social-net/handlers"
 	"github.com/YuriyNasretdinov/social-net/protocol"
 	"github.com/YuriyNasretdinov/social-net/session"
+	_ "github.com/cockroachdb/cockroach-go/crdb"
 	"golang.org/x/net/websocket"
 )
 
@@ -34,7 +34,7 @@ func serveStatic(filename string, w http.ResponseWriter) {
 	fp, err := os.Open(filename)
 	if err != nil {
 		w.WriteHeader(404)
-		w.Write([]byte("Could not find file: " + filename))
+		log.Printf("Could not find file: %s", filename)
 		return
 	}
 	defer fp.Close()
@@ -43,6 +43,8 @@ func serveStatic(filename string, w http.ResponseWriter) {
 		w.Header().Add("Content-type", "text/css")
 	} else if strings.HasSuffix(filename, ".js") {
 		w.Header().Add("Content-type", "application/javascript")
+	} else if strings.HasSuffix(filename, ".jpg") {
+		w.Header().Add("Content-type", "image/jpeg")
 	}
 
 	io.Copy(w, fp)
@@ -50,6 +52,23 @@ func serveStatic(filename string, w http.ResponseWriter) {
 
 func StaticServer(w http.ResponseWriter, req *http.Request) {
 	serveStatic(req.URL.Path[len("/"):], w)
+}
+
+func avatarPath(id int) string {
+	idStr := fmt.Sprintf("%03d", id)
+	return fmt.Sprintf("%c/%c/%s/%d.jpg", idStr[0], idStr[1], idStr[2:], id)
+}
+
+func AvatarServer(w http.ResponseWriter, req *http.Request) {
+	userIdStr := strings.TrimSuffix(req.URL.Path[len("/avatars/"):], ".jpg")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		w.WriteHeader(404)
+		w.Write([]byte("Could not parse user id"))
+		return
+	}
+
+	serveStatic(filepath.Join(config.Conf.AvatarDir, avatarPath(userId)), w)
 }
 
 func loginUser(email, userPassword string) (sessionId string, err error) {
@@ -268,6 +287,7 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 				continue
 			}
 
+			start := time.Now()
 			reflMethodType := method.Type.In(1)
 
 			userReq := reflect.New(reflMethodType.Elem()).Interface()
@@ -295,6 +315,8 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 				resp = respSlice[0].Interface()
 				return
 			}()
+
+			log.Printf("Processed %s, %+v in %s", reqType, userReq, time.Since(start))
 
 			switch v := resp.(type) {
 			case *protocol.ResponseError:
@@ -388,6 +410,10 @@ func main() {
 	flag.BoolVar(&testMode, "test-mode", false, "Do self-testing")
 	flag.Parse()
 
+	log.SetFlags(log.Flags() | log.Lmicroseconds)
+	start := time.Now()
+	log.Println("Starting")
+
 	config.ParseConfig(configPath)
 
 	db.Db, err = sql.Open("postgres", config.Conf.Postgresql)
@@ -395,12 +421,20 @@ func main() {
 		log.Fatal("Could not connect to db: " + err.Error())
 	}
 
+	log.Println("Connecting to DB")
+
 	db.InitStmts()
+
+	log.Println("Initializing session")
+
 	session.InitSession()
+
+	log.Println("Registering handlers")
 
 	http.Handle("/events", websocket.Handler(WebsocketEventsHandler))
 	go events.EventsDispatcher()
 
+	http.HandleFunc("/avatars/", AvatarServer)
 	http.HandleFunc("/static/", StaticServer)
 	http.HandleFunc("/login", LoginHandler)
 	http.HandleFunc("/logout", LogoutHandler)
@@ -409,6 +443,8 @@ func main() {
 	http.HandleFunc("/", IndexHandler)
 
 	go listen(config.Conf.Bind)
+
+	log.Printf("Waiting for events, init done in %s", time.Since(start))
 
 	if testMode {
 		err := runTest(config.Conf.Bind)

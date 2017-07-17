@@ -139,6 +139,7 @@ function onMessage(evt) {
 	} else if (reply.Type == 'EVENT_NEW_TIMELINE_EVENT') {
 		onNewTimelineEvent(reply)
 	} else if (reply.Type == 'EVENT_FRIEND_REQUEST') {
+	    showNotification("User wants to add you to friends")
         friendsRequestsCount++
         redrawFriendsRequestCount()
 	} else {
@@ -159,31 +160,35 @@ function onMessage(evt) {
 	redrawUsers()
 }
 
-function sendReq(reqType, reqData, onrcv) {
-	var cb = function() {
-		var msg = reqType + " " + seqId + "\n" + JSON.stringify(reqData)
-		websocket.send(msg)
-		rcvCallbacks[seqId] = onrcv
-		seqId++
-	}
+var debugDelay = 0
 
-	if (connected) {
-		cb()
-	} else {
-		pendingRequests.push(cb)
-	}
+function sendReq(reqType, reqData, onrcv) {
+	setTimeout(function() {
+		var cb = function() {
+			var msg = reqType + " " + seqId + "\n" + JSON.stringify(reqData)
+			websocket.send(msg)
+			rcvCallbacks[seqId] = onrcv
+			seqId++
+		}
+
+		if (connected) {
+			cb()
+		} else {
+			pendingRequests.push(cb)
+		}
+    }, debugDelay)
 }
 
 function redrawUsers() {
-	var str = '<b>online users</b>'
+	var el = document.getElementById("online_users")
+	el.innerHTML = '<b>online users</b>'
 
 	for (var userId in allUsers) {
 		var userInfo = allUsers[userId]
 		if (userId == ourUserId) continue
-		str += '<br/>' + htmlspecialchars(userInfo.Name)
+		el.appendChild(document.createElement('br'))
+		el.appendChild(profileLink(userId, userInfo.Name))
 	}
-
-	document.getElementById("online_users").innerHTML = str
 }
 
 function setWebsocketConnection() {

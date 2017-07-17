@@ -47,6 +47,14 @@ function confirmFriendshipCallback(ev) {
 	return false
 }
 
+function profileLink(id, name) {
+    var a = document.createElement('a')
+    a.href = '/profile/' + id
+    addEv(a, 'click', function(ev) { changeLocation('Profile', ev.target.href); return false })
+    a.appendChild(document.createTextNode(name))
+	return a
+}
+
 function loadFriends() {
 	sendReq("REQUEST_GET_FRIENDS", {Limit: 50}, function (reply) {
 		var el = document.getElementById('friends')
@@ -82,41 +90,43 @@ function loadFriends() {
 			}
 
 			el.appendChild(document.createElement('br'))
-		}
 
-		b = document.createElement('b')
-		b.appendChild(document.createTextNode('Friends:'))
-		el.appendChild(b)
-		el.appendChild(document.createElement('hr'))
+            b = document.createElement('b')
+            b.appendChild(document.createTextNode('Friends:'))
+            el.appendChild(b)
+            el.appendChild(document.createElement('hr'))
+		}
 
 		friends = reply.Users
 		for (i = 0; i < friends.length; i++) {
 			r = friends[i]
 			div = document.createElement('div')
-			div.appendChild(document.createTextNode(r.Name))
+			div.appendChild(profileLink(r.Id, r.Name))
 			el.appendChild(div)
 		}
 	})
 }
 
-function loadUsersList() {
-	sendReq("REQUEST_GET_USERS_LIST", {Limit: 50}, function (reply) {
+function loadUsersList(minId) {
+	var limit = 50
+
+	sendReq("REQUEST_GET_USERS_LIST", {Limit: limit + 1, MinId: minId}, function (reply) {
 		var el = document.getElementById('users_list')
-		el.innerHTML = '<b>Users:</b><hr/>'
+
+		if (!minId) {
+            el.innerHTML = ''
+		}
 
 		var users = reply.Users
+		var lastId
+
 		for (var i = 0; i < users.length; i++) {
 			var r = users[i]
 			var ulItem = document.createElement('div')
 			var aItem
 
 			ulItem.className = 'users_list_item'
-
-			aItem = document.createElement('a')
-			aItem.href = '/profile/' + r.Id
-			addEv(aItem, 'click', function(ev) { changeLocation('Profile', ev.target.href); return false })
-			aItem.appendChild(document.createTextNode(r.Name + ' '))
-			ulItem.appendChild(aItem)
+			ulItem.appendChild(profileLink(r.Id, r.Name + ' '))
 
 			if (!r.IsFriend) {
 				aItem = document.createElement('a')
@@ -136,6 +146,20 @@ function loadUsersList() {
 			}
 
 			el.appendChild(ulItem)
+
+			lastId = r.Id
+		}
+
+		if (users.length > limit) {
+            var div = document.createElement('div')
+            var textEl = document.createTextNode('...')
+            div.appendChild(textEl)
+            div.id = 'users_list_show_more'
+            el.appendChild(div)
+            addEv(div.id, 'click', function() {
+				div.parentNode.removeChild(div)
+				loadUsersList(lastId)
+            })
 		}
 	})
 }

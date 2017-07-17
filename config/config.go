@@ -13,6 +13,7 @@ type (
 		Postgresql string
 		Memcache   string
 		Bind       string
+		AvatarDir  string
 	}
 )
 

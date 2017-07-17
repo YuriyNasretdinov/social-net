@@ -109,6 +109,7 @@ type (
 	}
 
 	RequestGetUsersList struct {
+		MinId uint64 `json:",string"`
 		Limit uint64
 	}
 
@@ -178,6 +179,7 @@ type (
 		CityId         uint64 `json:",string"`
 		CityName       string
 		FamilyPosition int
+		FriendsCount   uint64
 	}
 
 	ReplyGeneric struct {

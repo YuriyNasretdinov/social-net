@@ -73,7 +73,7 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 		return &protocol.ResponseError{UserMsg: "Limit must be greater than 0"}
 	}
 
-	rows, err := db.GetUsersListStmt.Query(limit)
+	rows, err := db.GetUsersListStmt.Query(req.MinId, limit)
 	if err != nil {
 		return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
 	}
@@ -462,6 +462,11 @@ func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) prot
 	if err != nil {
 		log.Printf("Could not get city by id=%d for user id=%d", reply.CityId, req.UserId)
 		city = &db.City{}
+	}
+
+	reply.FriendsCount, err = db.GetUserFriendsCount(req.UserId)
+	if err != nil {
+		log.Printf("Could not get friends count for user %d", req.UserId)
 	}
 
 	reply.CityName = city.Name

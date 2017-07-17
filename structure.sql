@@ -30,6 +30,7 @@ CREATE TABLE socialuser (
   email VARCHAR(255),
   password VARCHAR(80),
   name VARCHAR(255),
+  have_avatar BOOL,
   UNIQUE (email)
 );
 

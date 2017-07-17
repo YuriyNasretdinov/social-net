@@ -100,6 +100,12 @@ body{
 	font-size: 20px;
 }
 
+#users_list_show_more {
+	cursor: pointer;
+	padding: 0 10px 10px 10px;
+	font-size: 20px;
+}
+
 .message {
 	padding: 3px;
 	margin: 3px;
