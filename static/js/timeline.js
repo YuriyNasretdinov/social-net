@@ -64,25 +64,22 @@ function showTimelineResponse(reply) {
 		if (i >= DEFAULT_TIMELINE_LIMIT - 1) break
 	}
 
+	loadMoreFunc = null
+
 	if (len > DEFAULT_TIMELINE_LIMIT) {
-		var div = document.createElement('div')
-		var textEl = document.createTextNode('...')
-		div.appendChild(textEl)
-		div.id = 'timeline_show_more'
-		el.appendChild(div)
-		addEv(div.id, 'click', function() {
+		loadMoreFunc = function() {
 			sendReq(
 				"REQUEST_GET_TIMELINE",
 				{
 					DateEnd: minTs,
-					Limit: DEFAULT_TIMELINE_LIMIT + 1,
+					Limit: DEFAULT_TIMELINE_LIMIT + 1
 				},
 				function (reply) {
-					div.parentNode.removeChild(div)
 					showTimelineResponse(reply)
 				}
 			)
-		})
+		}
+		window.onscroll()
 	}
 }
 

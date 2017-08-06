@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"strconv"
-	"time"
-
 	"strings"
+	"time"
 
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
@@ -73,9 +73,19 @@ func (ctx *WebsocketCtx) ProcessGetUsersList(req *protocol.RequestGetUsersList) 
 		return &protocol.ResponseError{UserMsg: "Limit must be greater than 0"}
 	}
 
-	rows, err := db.GetUsersListStmt.Query(req.MinId, limit)
-	if err != nil {
-		return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
+	var rows *sql.Rows
+	var err error
+
+	if req.Search == "" {
+		rows, err = db.GetUsersListStmt.Query(req.MinId, limit)
+		if err != nil {
+			return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
+		}
+	} else {
+		rows, err = db.GetUsersListWithSearchStmt.Query(req.MinId, "%"+req.Search+"%", limit)
+		if err != nil {
+			return &protocol.ResponseError{UserMsg: "Cannot select users", Err: err}
+		}
 	}
 
 	reply := new(protocol.ReplyUsersList)

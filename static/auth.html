@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-	<title>Social network (authorized)</title>
+	<title>vbambuke</title>
 	<!--<link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>-->
 	<link rel="stylesheet" href="/static/css/style.css" />
+	<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=yes" />
 </head>
 <body>
 	<div id="loading"></div>
@@ -17,7 +18,11 @@
 				<li><a href="/friends/" id="friends_link">Friends<span id="friends_badge" style="display: none;"></span></a></li>
 				<li><a href="/users_list/" id="users_list_link">Users</a></li>
 			</ul>
-			<div class="login_info"><span id="status"></span> Logged in as <b>{{.Name}}</b> [<a href="/logout">logout</a>]</div>
+			<div class="login_info">
+				<span id="status"></span>
+				<span class="logged_as">Logged in as <b>{{.Name}}</b></span>
+				[<a href="/logout">logout</a>]
+			</div>
 		</div>
 	</div>
 	<div class="error_text" id="error_text" style="display: none;"></div>
@@ -55,9 +60,12 @@
 		<div class="friends" id="friends"><!--
             <div class="friend">Friend1</div>
         --></div>
-        <div class="users_list" id="users_list"><!--
-            <div class="users_list_item">User1</div>
-        --></div>
+        <div class="users_list" id="users_list">
+			<div>
+				<b>Search:</b>
+				<input type="search" id="search_users" />
+			</div>
+		</div>
 		<div class="profile" id="profile"></div>
 	</div>
 	<script type="text/javascript" src="/static/js/main.js"></script>

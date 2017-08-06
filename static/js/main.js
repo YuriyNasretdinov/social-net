@@ -6,8 +6,6 @@ var websocket
 var connected = false
 var pendingRequests = []
 
-var DEFAULT_MESSAGES_LIMIT = 5
-
 var tabs = ['messages', 'timeline', 'friends', 'users_list', 'profile']
 var loaders = {}
 
@@ -280,6 +278,28 @@ function createTsEl(ts) {
 		)
 	)
 	return tsEl
+}
+
+var loadMoreFunc
+var isLoading = false
+
+window.onscroll = function(ev) {
+	if ((window.innerHeight + window.scrollY) < document.body.offsetHeight) {
+		return;
+	}
+
+	if (isLoading) {
+		return;
+	}
+
+	isLoading = true
+
+	setTimeout(function() {
+		if (loadMoreFunc) {
+			loadMoreFunc()
+		}
+		isLoading = false
+	}, 0)
 }
 
 function setUpPage() {

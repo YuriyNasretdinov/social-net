@@ -46,6 +46,8 @@ function loadProfile() {
 			}
 
 			function fmtDate(value) {
+				if (!value) return ''
+
 				var parts = value.split(/\-/g)
 
 				var day = +parts[2]
@@ -64,7 +66,7 @@ function loadProfile() {
 				inp('FriendsCount', 'Friends') +
 				'</table>'
 
-			if (reply.IsFriend) {
+			if (ourUserId != userId && reply.IsFriend) {
 				if (reply.RequestAccepted) {
 					cont += '<div>(you are friends)</div>'
 				} else {
@@ -74,7 +76,7 @@ function loadProfile() {
 
 			el.innerHTML = cont
 
-			if (!reply.IsFriend) {
+			if (ourUserId != userId && !reply.IsFriend) {
 				el.appendChild(addToFriendsLink(
 					userId,
 					reply.Name,

@@ -35,6 +35,7 @@ var (
 
 	// Users
 	GetUsersListStmt              *sql.Stmt
+	GetUsersListWithSearchStmt    *sql.Stmt
 	GetFriendsList                *sql.Stmt
 	GetFriendsCount               *sql.Stmt
 	GetFriendsRequestList         *sql.Stmt
@@ -118,6 +119,13 @@ func InitStmts() {
 		WHERE id > $1
 		ORDER BY id
 		LIMIT $2`)
+
+	GetUsersListWithSearchStmt = prepareStmt(Db, `SELECT
+			u.name, u.id
+		FROM socialuser AS u
+		WHERE id > $1 AND u.name ILIKE $2
+		ORDER BY id
+		LIMIT $3`)
 
 	GetProfileStmt = prepareStmt(Db, `SELECT
 			name, birthdate, sex, description, city_id, family_position

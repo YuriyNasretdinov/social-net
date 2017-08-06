@@ -119,15 +119,41 @@ function addToFriendsLink(id, name, lnkText) {
 	return el
 }
 
+function deleteElements(els) {
+	els = Array.prototype.slice.call(els)
+
+	for (var i = 0; i < els.length; i++) {
+		var el = els[i];
+		el.parentNode.removeChild(el);
+	}
+}
+
+var curUserSearch = ''
+
+setInterval(function() {
+	var el = document.getElementById('search_users')
+	if (el.value != curUserSearch) {
+		curUserSearch = el.value
+		loadUsersList()
+	}
+}, 100)
+
 function loadUsersList(minId) {
 	var limit = 50
+	var req = {Limit: limit + 1, MinId: minId || '0', Search: document.getElementById('search_users').value};
 
-	sendReq("REQUEST_GET_USERS_LIST", {Limit: limit + 1, MinId: minId}, function (reply) {
-		var el = document.getElementById('users_list')
+	sendReq("REQUEST_GET_USERS_LIST", req, function (reply) {
+		var el
 
 		if (!minId) {
-            el.innerHTML = ''
+			deleteElements(document.getElementsByClassName('users_list_item'));
+			el = document.getElementById('users_list_show_more');
+			if (el) {
+				deleteElements([el]);
+			}
 		}
+
+		el = document.getElementById('users_list')
 
 		var users = reply.Users
 		var lastId
@@ -152,16 +178,11 @@ function loadUsersList(minId) {
 			lastId = r.Id
 		}
 
+		loadMoreFunc = null
+
 		if (users.length > limit) {
-            var div = document.createElement('div')
-            var textEl = document.createTextNode('...')
-            div.appendChild(textEl)
-            div.id = 'users_list_show_more'
-            el.appendChild(div)
-            addEv(div.id, 'click', function() {
-				div.parentNode.removeChild(div)
-				loadUsersList(lastId)
-            })
+			loadMoreFunc = function () { loadUsersList(lastId) }
+			window.onscroll()
 		}
 	})
 }

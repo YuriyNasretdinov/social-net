@@ -109,8 +109,9 @@ type (
 	}
 
 	RequestGetUsersList struct {
-		MinId uint64 `json:",string"`
-		Limit uint64
+		MinId  uint64 `json:",string"`
+		Limit  uint64
+		Search string
 	}
 
 	RequestAddFriend struct {

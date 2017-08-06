@@ -126,6 +126,8 @@ body{
 .users {
 	width: 250px;
 	height: calc( 100vh - 80px );
+	max-height: calc( 100vh - 80px );
+	overflow: auto;
 	border-right: 1px #dadada solid;
 	float: left;
 	padding: 5px;
@@ -306,4 +308,51 @@ body{
 	padding: 2px;
 	margin-left: 3px;
 	border-radius: 3px;
+}
+
+
+@media screen and (max-device-width: 480px) {
+	.users {
+		width: 100px;
+	}
+
+	.onlines {
+		width: 50px;
+	}
+
+	#messages {
+		width: 480px;
+	}
+
+	.messages_texts {
+		width: 300px;
+	}
+
+	.message_form {
+		width: 270px;
+	}
+
+	.content {
+		width: 480px;
+	}
+
+	.container {
+		width: 480px;
+	}
+
+	.header-wrapper ul {
+		width: 400px;
+	}
+
+	.login_info {
+		width: 70px;
+	}
+
+	.logged_as {
+		display: none;
+	}
+
+	#msg {
+		height: 20px;
+	}
 }

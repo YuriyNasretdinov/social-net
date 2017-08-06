@@ -1,5 +1,6 @@
 var msgCurUser = 0
-loaders["messages"] = loadMessageUsers;
+loaders["messages"] = loadMessageUsers
+var DEFAULT_MESSAGES_LIMIT = 50
 
 function loadMessageUsers() {
 	sendReq(
@@ -22,7 +23,7 @@ function redrawMessageUsers(users) {
 	for (i = 0; i < users.length; i++) {
 		userInfo = users[i]
 		shownUsers[userInfo.Id] = true
-		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><span id="messages' + userInfo.Id + '">' + userInfo.Name + "</span></div>")
+		msgUsers.push('<div class="user" id="messages' + userInfo.Id + '"><span id="messages' + userInfo.Id + '">' + htmlspecialchars(userInfo.Name) + "</span></div>")
 	}
 
 	document.getElementById("users").innerHTML = msgUsers.join(" ")
@@ -85,6 +86,14 @@ function showMessagesResponse(id, reply, erase) {
 		if (i >= DEFAULT_MESSAGES_LIMIT - 1) break
 	}
 
+	try {
+		if (erase) {
+			el.lastChild.scrollIntoView()
+		}
+	} catch (e) {
+		console.log('could not scroll into view', e)
+	}
+
 	if (len > DEFAULT_MESSAGES_LIMIT) {
 		var div = document.createElement('div')
 		var textEl = document.createTextNode('...')
@@ -97,7 +106,7 @@ function showMessagesResponse(id, reply, erase) {
 				{
 					UserTo: id,
 					DateEnd: minTs,
-					Limit: DEFAULT_MESSAGES_LIMIT + 1,
+					Limit: DEFAULT_MESSAGES_LIMIT + 1
 				},
 				function (reply) {
 					div.parentNode.removeChild(div)
@@ -116,7 +125,13 @@ function onNewMessage(msg) {
 		return
 	}
 
-	document.getElementById("message-content").appendChild(createMsgEl(msg))
+	var msgEl = createMsgEl(msg)
+	document.getElementById("message-content").appendChild(msgEl)
+	try {
+		msgEl.scrollIntoView()
+	} catch (e) {
+		console.log("Could not scroll into view", e)
+	}
 }
 
 function showMessages(id) {
