@@ -466,7 +466,12 @@ func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) prot
 
 	reply.FriendsCount, err = db.GetUserFriendsCount(req.UserId)
 	if err != nil {
-		log.Printf("Could not get friends count for user %d", req.UserId)
+		log.Printf("Could not get friends count for user %d: %s", req.UserId, err.Error())
+	}
+
+	reply.IsFriend, reply.RequestAccepted, err = db.IsUserFriend(ctx.UserId, req.UserId)
+	if err != nil {
+		log.Printf("Could not get information about friendship for user %d: %s", req.UserId, err.Error())
 	}
 
 	reply.CityName = city.Name
@@ -494,19 +499,19 @@ func (ctx *WebsocketCtx) ProcessUpdateProfile(req *protocol.RequestUpdateProfile
 
 	row, err := db.GetProfileStmt.Query(ctx.UserId)
 	if err != nil {
-		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+		return &protocol.ResponseError{UserMsg: "Could not update user profile", Err: err}
 	}
 	defer row.Close()
 
 	if !row.Next() {
 		_, err := db.AddProfileStmt.Exec(&ctx.UserId, &req.Name, &req.Birthdate, &req.Sex, "", &cityId, &req.FamilyPosition)
 		if err != nil {
-			return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+			return &protocol.ResponseError{UserMsg: "Could not update user profile", Err: err}
 		}
 	} else {
 		_, err := db.UpdateProfileStmt.Exec(&req.Name, &req.Birthdate, &req.Sex, "", &cityId, &req.FamilyPosition, &ctx.UserId)
 		if err != nil {
-			return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
+			return &protocol.ResponseError{UserMsg: "Could not update user profile", Err: err}
 		}
 	}
 

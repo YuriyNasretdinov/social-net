@@ -69,7 +69,7 @@ function loadFriends() {
 			var b = document.createElement('b')
 			b.appendChild(document.createTextNode('Friends requests:'))
 			el.appendChild(b)
-			el.appendChild(document.createElement('hr'))
+			el.appendChild(document.createElement('br'))
 
 			friends = reply.FriendRequests
 			for (i = 0; i < friends.length; i++) {
@@ -94,7 +94,7 @@ function loadFriends() {
             b = document.createElement('b')
             b.appendChild(document.createTextNode('Friends:'))
             el.appendChild(b)
-            el.appendChild(document.createElement('hr'))
+            el.appendChild(document.createElement('br'))
 		}
 
 		friends = reply.Users
@@ -105,6 +105,18 @@ function loadFriends() {
 			el.appendChild(div)
 		}
 	})
+}
+
+function addToFriendsLink(id, name, lnkText) {
+	var el = document.createElement('a')
+	el.title = 'Add to friends'
+	el.className = 'add_friends_link'
+	el.href = '#add_friend_' + id
+	el.id = 'add_friend_link_' + id
+	el.dataName = name
+	el.appendChild(document.createTextNode(lnkText))
+	addEv(el, 'click', requestAddFriendCallback)
+	return el
 }
 
 function loadUsersList(minId) {
@@ -123,22 +135,12 @@ function loadUsersList(minId) {
 		for (var i = 0; i < users.length; i++) {
 			var r = users[i]
 			var ulItem = document.createElement('div')
-			var aItem
 
 			ulItem.className = 'users_list_item'
 			ulItem.appendChild(profileLink(r.Id, r.Name + ' '))
 
 			if (!r.IsFriend) {
-				aItem = document.createElement('a')
-				aItem.title = 'Add to friends'
-				aItem.className = 'add_friends_link'
-				aItem.href = '#add_friend_' + r.Id
-				aItem.id = 'add_friend_link_' + r.Id
-				aItem.dataName = r.Name
-				aItem.appendChild(document.createTextNode('+'))
-				addEv(aItem, 'click', requestAddFriendCallback)
-
-				ulItem.appendChild(aItem)
+				ulItem.appendChild(addToFriendsLink(r.Id, r.Name, '+'))
 			} else if (r.FriendshipConfirmed) {
 				ulItem.appendChild(document.createTextNode('(friend)'))
 			} else {

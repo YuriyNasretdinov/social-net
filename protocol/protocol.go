@@ -172,14 +172,16 @@ type (
 
 	ReplyGetProfile struct {
 		BaseReply
-		Name           string
-		Birthdate      string
-		Sex            int
-		Description    string
-		CityId         uint64 `json:",string"`
-		CityName       string
-		FamilyPosition int
-		FriendsCount   uint64
+		Name            string
+		Birthdate       string
+		Sex             int
+		Description     string
+		CityId          uint64 `json:",string"`
+		CityName        string
+		FamilyPosition  int
+		FriendsCount    uint64
+		IsFriend        bool
+		RequestAccepted bool
 	}
 
 	ReplyGeneric struct {

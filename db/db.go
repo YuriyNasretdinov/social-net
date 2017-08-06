@@ -34,10 +34,11 @@ var (
 	AddToTimelineStmt   *sql.Stmt
 
 	// Users
-	GetUsersListStmt      *sql.Stmt
-	GetFriendsList        *sql.Stmt
-	GetFriendsCount       *sql.Stmt
-	GetFriendsRequestList *sql.Stmt
+	GetUsersListStmt              *sql.Stmt
+	GetFriendsList                *sql.Stmt
+	GetFriendsCount               *sql.Stmt
+	GetFriendsRequestList         *sql.Stmt
+	GetRequestedAcceptedForFriend *sql.Stmt
 
 	// Friends
 	AddFriendsRequestStmt *sql.Stmt
@@ -70,6 +71,8 @@ func InitStmts() {
 	GetFriendsList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = true`)
 	GetFriendsCount = prepareStmt(Db, `SELECT COUNT(*) FROM friend WHERE user_id = $1 AND request_accepted = true`)
 	GetFriendsRequestList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = false`)
+	GetFriendsRequestList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = false`)
+	GetRequestedAcceptedForFriend = prepareStmt(Db, `SELECT request_accepted FROM friend WHERE user_id = $1 AND friend_user_id = $2`)
 
 	GetMessagesStmt = prepareStmt(Db, `SELECT id, message, ts, is_out
 		FROM messages
@@ -191,6 +194,19 @@ func GetUserFriends(userId uint64) (userIds []uint64, err error) {
 
 func GetUserFriendsRequests(userId uint64) (userIds []uint64, err error) {
 	return getUsersByStmt(userId, GetFriendsRequestList)
+}
+
+func IsUserFriend(userId, friendId uint64) (isFriend, requestAccepted bool, err error) {
+	row := GetRequestedAcceptedForFriend.QueryRow(friendId, userId)
+	err = row.Scan(&requestAccepted)
+
+	if err == sql.ErrNoRows {
+		return false, false, nil
+	} else if err != nil {
+		return false, false, err
+	}
+
+	return true, requestAccepted, nil
 }
 
 func getUsersByStmt(userId uint64, stmt *sql.Stmt) (userIds []uint64, err error) {

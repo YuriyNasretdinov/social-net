@@ -13,20 +13,20 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
+	"path/filepath"
 
+	_ "github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/YuriyNasretdinov/social-net/config"
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
 	"github.com/YuriyNasretdinov/social-net/handlers"
 	"github.com/YuriyNasretdinov/social-net/protocol"
 	"github.com/YuriyNasretdinov/social-net/session"
-	_ "github.com/cockroachdb/cockroach-go/crdb"
 	"golang.org/x/net/websocket"
 )
 
