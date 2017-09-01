@@ -364,6 +364,19 @@ func registerUser(email, userPassword, name string) (err error, duplicate bool) 
 	return
 }
 
+func CheckHandler(w http.ResponseWriter, req *http.Request) {
+	var id int64
+	if err := db.TestStmt.QueryRow().Scan(&id); err != nil {
+		log.Println("Could not execute test query", err.Error())
+		fmt.Fprintf(w, "OK=0\n")
+		w.WriteHeader(500)
+		return
+	}
+
+	w.WriteHeader(200)
+	fmt.Fprintf(w, "OK=1\n")
+}
+
 func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 
@@ -436,6 +449,7 @@ func main() {
 
 	http.HandleFunc("/avatars/", AvatarServer)
 	http.HandleFunc("/static/", StaticServer)
+	http.HandleFunc("/check", CheckHandler)
 	http.HandleFunc("/login", LoginHandler)
 	http.HandleFunc("/logout", LogoutHandler)
 	http.HandleFunc("/register", RegisterHandler)

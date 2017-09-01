@@ -18,6 +18,9 @@ type (
 var (
 	Db *sql.DB
 
+	// Test statement to check if cockroach db is alive
+	TestStmt *sql.Stmt
+
 	// Authorization
 	LoginStmt *sql.Stmt
 
@@ -67,6 +70,7 @@ func prepareStmt(db *sql.DB, stmt string) *sql.Stmt {
 
 //language=PostgreSQL
 func InitStmts() {
+	TestStmt = prepareStmt(Db, "SELECT MAX(id) FROM socialuser")
 	LoginStmt = prepareStmt(Db, "SELECT id, password, name FROM socialuser WHERE email = $1")
 	RegisterStmt = prepareStmt(Db, "INSERT INTO socialuser(email, password, name, have_avatar) VALUES($1, $2, $3, false) RETURNING id")
 	GetFriendsList = prepareStmt(Db, `SELECT friend_user_id FROM friend WHERE user_id = $1 AND request_accepted = true`)
