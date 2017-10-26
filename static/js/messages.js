@@ -77,8 +77,22 @@ function showMessagesResponse(id, reply, erase) {
 
 	var minTs
 
+	var sdt = new Date()
+	var startOfDay = sdt.getDate() + '-' + sdt.getMonth() + '-' + sdt.getYear()
+
 	for (var i = 0; i < len; i++) {
 		var msg = reply.Messages[i]
+		var dt = new Date(msg.Ts / 1e6)
+		var dayStart = dt.getDate() + '-' + dt.getMonth() + '-' + dt.getYear()
+
+		if (dayStart < startOfDay && i > 0) {
+			var sep = document.createElement('div')
+			sep.className = 'date_separator'
+			sep.innerHTML = sdt.getDate() + ' ' + months[sdt.getMonth() + 1] + ' ' + sdt.getFullYear()
+			el.insertBefore(sep, el.firstChild)
+			startOfDay = dayStart
+		}
+
 		el.insertBefore(createMsgEl(msg), el.firstChild)
 
 		minTs = msg.Ts

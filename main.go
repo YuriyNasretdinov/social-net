@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/md5"
 	"crypto/sha1"
+	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -13,20 +14,21 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
-	"path/filepath"
 
-	_ "github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/YuriyNasretdinov/social-net/config"
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
 	"github.com/YuriyNasretdinov/social-net/handlers"
 	"github.com/YuriyNasretdinov/social-net/protocol"
 	"github.com/YuriyNasretdinov/social-net/session"
+	_ "github.com/cockroachdb/cockroach-go/crdb"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/websocket"
 )
 
@@ -183,6 +185,12 @@ func getAuthUserInfo(cookies []*http.Cookie) *session.SessionInfo {
 }
 
 func IndexHandler(w http.ResponseWriter, req *http.Request) {
+	if req.Host == config.Conf.Host && req.TLS == nil {
+		w.Header().Add("Location", "https://"+req.Host+req.RequestURI)
+		w.WriteHeader(http.StatusPermanentRedirect)
+		return
+	}
+
 	// validate session
 	if info := getAuthUserInfo(req.Cookies()); info != nil {
 		serveAuthPage(info, w)
@@ -409,7 +417,28 @@ func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func listen(addr string) {
-	log.Fatal("ListenAndServe: ", http.ListenAndServe(addr, nil))
+	go func() {
+		log.Fatal("ListenAndServe: ", http.ListenAndServe(addr, nil))
+	}()
+
+	if config.Conf.CertDir != "" {
+		certManager := autocert.Manager{
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(config.Conf.Host),
+			Cache:      autocert.DirCache(config.Conf.CertDir),
+		}
+
+		server := &http.Server{
+			Addr: config.Conf.BindTLS,
+			TLSConfig: &tls.Config{
+				GetCertificate: certManager.GetCertificate,
+			},
+		}
+
+		go func() {
+			log.Fatal("ListenAndServeTLS: ", server.ListenAndServeTLS("", ""))
+		}()
+	}
 }
 
 func main() {

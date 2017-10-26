@@ -191,7 +191,7 @@ function redrawUsers() {
 
 function setWebsocketConnection() {
 	rcvCallbacks = {}
-	websocket = new WebSocket("ws://" + window.location.host + "/events")
+	websocket = new WebSocket("ws" + (window.location.protocol.indexOf("https") >= 0 ? "s" : "") + "://" + window.location.host + "/events")
 	websocket.onopen = function(evt) {
 		connected = true
 		updateConnectionStatus()

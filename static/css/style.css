@@ -310,6 +310,13 @@ body{
 	border-radius: 3px;
 }
 
+.date_separator {
+	border-bottom: 1px #cccccc dashed;
+	font-weight: bold;
+	text-align: center;
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
 
 @media screen and (max-device-width: 480px) {
 	.users {

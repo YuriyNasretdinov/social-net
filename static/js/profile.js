@@ -17,24 +17,24 @@ function SetUpProfilePage() {
 
 loaders["profile"] = loadProfile
 
+var months = {
+	1: 'Jan',
+	2: 'Feb',
+	3: 'Apr',
+	4: 'Mar',
+	5: 'May',
+	6: 'Jun',
+	7: 'Jul',
+	8: 'Aug',
+	9: 'Sep',
+	10: 'Oct',
+	11: 'Nov',
+	12: 'Dec'
+};
+
 function loadProfile() {
     var el = document.getElementById('profile')
 	el.innerHTML = ''
-
-	var months = {
-		1: 'Jan',
-		2: 'Feb',
-		3: 'Apr',
-		4: 'Mar',
-		5: 'May',
-		6: 'Jun',
-		7: 'Jul',
-		8: 'Aug',
-		9: 'Sep',
-		10: 'Oct',
-		11: 'Nov',
-		12: 'Dec'
-	};
 
 	var location_parts = ("" + location.pathname).split(/\//g)
 	if (location_parts[2]) {
