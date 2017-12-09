@@ -65,6 +65,7 @@ function createMsgEl(msg) {
 	} else {
 		div.className += ' message_in'
 	}
+	div.setAttribute('data-ts', msg.Ts)
 	div.appendChild(document.createTextNode(msg.Text))
 	div.appendChild(createTsEl(msg.Ts))
 	return div
@@ -77,36 +78,38 @@ function showMessagesResponse(id, reply, erase) {
 
 	var minTs
 
-	var sdt = new Date()
-	var startOfDay = sdt.getDate() + '-' + sdt.getMonth() + '-' + sdt.getYear()
+	if (len > 0) {
+		var sdt = new Date(reply.Messages[0].Ts / 1e6)
+		var startOfDay = sdt.getDate() + '-' + sdt.getMonth() + '-' + sdt.getYear()
+	}
+
+	var drawSep = function() {
+		var sep = document.createElement('div')
+		sep.className = 'date_separator'
+		sep.innerHTML = sdt.getDate() + ' ' + months[sdt.getMonth() + 1] + ' ' + sdt.getFullYear()
+		el.insertBefore(sep, el.firstChild)
+	}
 
 	for (var i = 0; i < len; i++) {
 		var msg = reply.Messages[i]
 		var dt = new Date(msg.Ts / 1e6)
 		var dayStart = dt.getDate() + '-' + dt.getMonth() + '-' + dt.getYear()
 
-		if (dayStart < startOfDay && i > 0) {
-			var sep = document.createElement('div')
-			sep.className = 'date_separator'
-			sep.innerHTML = sdt.getDate() + ' ' + months[sdt.getMonth() + 1] + ' ' + sdt.getFullYear()
-			el.insertBefore(sep, el.firstChild)
+		if (dayStart != startOfDay) {
+			drawSep()
 			startOfDay = dayStart
+			sdt = dt
 		}
 
-		el.insertBefore(createMsgEl(msg), el.firstChild)
+		var msgEl = createMsgEl(msg);
+		el.insertBefore(msgEl, el.firstChild)
 
 		minTs = msg.Ts
 		// do not show 'extra' message because it would otherwise be duplicate
 		if (i >= DEFAULT_MESSAGES_LIMIT - 1) break
 	}
 
-	try {
-		if (erase) {
-			el.lastChild.scrollIntoView()
-		}
-	} catch (e) {
-		console.log('could not scroll into view', e)
-	}
+	drawSep()
 
 	if (len > DEFAULT_MESSAGES_LIMIT) {
 		var div = document.createElement('div')
@@ -129,6 +132,14 @@ function showMessagesResponse(id, reply, erase) {
 			)
 		})
 	}
+
+	try {
+		if (erase || !id) {
+			el.lastChild.scrollIntoView()
+		}
+	} catch (e) {
+		console.log('could not scroll into view', e)
+	}
 }
 
 function onNewMessage(msg) {
@@ -139,8 +150,25 @@ function onNewMessage(msg) {
 		return
 	}
 
+	var el = document.getElementById("message-content")
+
+	if (el.lastChild) {
+		var sdt = new Date(el.lastChild.getAttribute('data-ts') / 1e6)
+		var startOfDay = sdt.getDate() + '-' + sdt.getMonth() + '-' + sdt.getYear()
+	}
+
+	var dt = new Date(msg.Ts / 1e6)
+	var dayStart = dt.getDate() + '-' + dt.getMonth() + '-' + dt.getYear()
+
+	if (dayStart < startOfDay) {
+		var sep = document.createElement('div')
+		sep.className = 'date_separator'
+		sep.innerHTML = sdt.getDate() + ' ' + months[sdt.getMonth() + 1] + ' ' + sdt.getFullYear()
+		el.appendChild(sep)
+	}
+
 	var msgEl = createMsgEl(msg)
-	document.getElementById("message-content").appendChild(msgEl)
+	el.appendChild(msgEl)
 	try {
 		msgEl.scrollIntoView()
 	} catch (e) {

@@ -112,7 +112,7 @@ body{
 }
 
 .message_out {
-    text-align: right;
+	text-align: right;
 }
 
 .message .ts, .timeline_event .ts {

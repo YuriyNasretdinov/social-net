@@ -34,7 +34,6 @@ var (
 
 	// Timeline
 	GetFromTimelineStmt *sql.Stmt
-	AddToTimelineStmt   *sql.Stmt
 
 	// Users
 	GetUsersListStmt              *sql.Stmt
@@ -96,11 +95,6 @@ func InitStmts() {
 		GROUP BY user_id_to
 		ORDER BY max_ts DESC
 		LIMIT $2`)
-
-	AddToTimelineStmt = prepareStmt(Db, `INSERT INTO timeline
-		(user_id, source_user_id, message, ts)
-		VALUES($1, $2, $3, $4)
-		RETURNING id`)
 
 	AddFriendsRequestStmt = prepareStmt(Db, `INSERT INTO friend
 		(user_id, friend_user_id, request_accepted)

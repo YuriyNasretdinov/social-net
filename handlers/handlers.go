@@ -11,6 +11,7 @@ import (
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
 	"github.com/YuriyNasretdinov/social-net/protocol"
+	"github.com/cockroachdb/cockroach-go/crdb"
 )
 
 const (
@@ -294,10 +295,33 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 
 	userIds = append(userIds, ctx.UserId)
 
-	for _, uid := range userIds {
-		if _, err = db.AddToTimelineStmt.Exec(uid, ctx.UserId, req.Text, now); err != nil {
-			return &protocol.ResponseError{UserMsg: "Could not add to timeline", Err: err}
+	err = crdb.ExecuteTx(db.Db, func(tx *sql.Tx) error {
+		var args = make([]interface{}, 0, len(userIds)*4)
+		var values = make([]string, 0, len(userIds))
+
+		var cnt = 1
+
+		for _, uid := range userIds {
+			values = append(values, fmt.Sprintf(
+				`($%d, $%d, $%d, $%d)`,
+				cnt, cnt+1, cnt+2, cnt+3,
+			))
+			cnt += 4
+			args = append(args, uid, ctx.UserId, req.Text, now)
 		}
+
+		_, err := tx.Exec(
+			`INSERT INTO timeline
+			(user_id, source_user_id, message, ts)
+			VALUES `+strings.Join(values, ", "),
+			args...,
+		)
+
+		return err
+	})
+
+	if err != nil {
+		return &protocol.ResponseError{UserMsg: "Could not add to timeline", Err: err}
 	}
 
 	reply := new(protocol.ReplyGeneric)
