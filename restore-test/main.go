@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/storage/engine"
 	"github.com/cockroachdb/cockroach/pkg/util/hlc"
@@ -20,6 +23,19 @@ var mapping = map[string]string{
 	"56": "userinfo",
 }
 
+func escape(q string) string {
+	var b bytes.Buffer
+	for _, c := range q {
+		b.WriteRune(c)
+
+		if c == '\'' {
+			b.WriteRune(c)
+		}
+	}
+
+	return b.String()
+}
+
 func main() {
 	db, err := engine.NewRocksDB(engine.RocksDBConfig{
 		Dir:       "/Users/yuriy/tmp/vbambuke",
@@ -32,11 +48,18 @@ func main() {
 
 	cnt := 0
 
+	prevPK := ""
+	prevTable := ""
+
 	err = db.Iterate(
 		engine.MVCCKey{Timestamp: hlc.MinTimestamp},
 		engine.MVCCKeyMax,
 		func(kv engine.MVCCKeyValue) (bool, error) {
 			cnt++
+
+			if kv.Key.Key == nil {
+				return false, nil
+			}
 
 			k := fmt.Sprint(kv.Key)
 
@@ -59,14 +82,102 @@ func main() {
 				fp.WriteString(fmt.Sprintf("%s    =     %s\n", key, kv.Value))
 				fp.Close()
 
-				if table == "city" {
-					parts := strings.Split(key, "/")
-					typ := parts[0]
-					if typ == "1" {
-						pk := parts[1]
+				parts1 := strings.Split(key, "/")
+				typ := parts1[0]
+				pk := parts1[1]
+
+				if pk == prevPK && table == prevTable {
+					return false, nil
+				}
+
+				prevPK = pk
+				prevTable = table
+
+				if typ == "1" {
+					if table == "city" {
 						v := kv.Value[6:]
 						ln := v[0]
-						log.Printf("City %s = '%s'", pk, string(v[1:ln+1]))
+
+						fmt.Printf(
+							"INSERT INTO city2(id, name, lon, lat) VALUES(%s, '%s', 0, 0);\n",
+							pk, escape(string(v[1:ln+1])),
+						)
+
+						// log.Printf("City %s = '%s'", pk, string(v[1:ln+1]))
+					} else if table == "socialuser" {
+						v := kv.Value[6:]
+						ln := v[0]
+						email := string(v[1 : ln+1])
+
+						v = v[ln+2:]
+						ln = v[0]
+						password := string(v[1 : ln+1])
+
+						v = v[ln+2:]
+						ln = v[0]
+						name := string(v[1 : ln+1])
+
+						fmt.Printf(
+							"INSERT INTO socialuser2(id, email, password, name) VALUES(%s, '%s', '%s', '%s');\n",
+							pk, escape(email), escape(password), escape(name),
+						)
+
+						// log.Printf("User %s    email=%s   password=%s   name=%s", pk, email, password, name)
+					} else if table == "userinfo" {
+						v := kv.Value[6:]
+						ln := int(v[0])
+						name := string(v[1 : ln+1])
+
+						if v[ln+1] != '\023' {
+							return true, errors.New("userinfo NOT 023 (name)")
+						}
+
+						v = v[ln+2:]
+						birthdate, ln := binary.Varint(v)
+
+						if v[ln] != '\023' {
+							return true, errors.New("userinfo NOT 023 (birthdate)")
+						}
+
+						v = v[ln+1:]
+						sex := v[0]
+
+						if v[1] != '\026' {
+							return true, errors.New("userinfo NOT 023 (sex)")
+						}
+
+						v = v[2:]
+						ln = int(v[0])
+						description := string(v[1 : ln+1])
+
+						if v[ln+1] != '\023' {
+							return true, errors.New("userinfo NOT 023 (description)")
+						}
+
+						v = v[ln+2:]
+						cityID, ln := binary.Varint(v)
+
+						if v[ln] != '\023' {
+							return true, errors.New("userinfo NOT 023 (city_id)")
+						}
+
+						v = v[ln+1:]
+						familyPosition := v[0]
+
+						ts := time.Unix(birthdate*86400, 0)
+
+						/*
+							log.Printf(
+								"User %s    name='%s'   birthdate=%v   sex=%d   description='%s'   city_id=%d   familyPosition=%d",
+								pk, name, birthdate, sex, description, cityID, familyPosition,
+							)
+						*/
+
+						fmt.Printf(
+							"INSERT INTO userinfo2(user_id, name, birthdate, sex, description, city_id, family_position) VALUES(%s, '%s', '%s', %d, '%s', %d, %d);\n",
+							pk, escape(name), fmt.Sprintf("%04d-%02d-%02d", ts.Year(), ts.Month(), ts.Day()),
+							sex, escape(description), cityID, familyPosition,
+						)
 					}
 				}
 			}
