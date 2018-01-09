@@ -12,6 +12,7 @@ const (
 	REQUEST_GET_FRIENDS
 	REQUEST_GET_PROFILE
 	REQUEST_UPDATE_PROFILE
+	REQUEST_GET_TIMELINE_FOR_HASH
 
 	REPLY_ERROR = iota
 	REPLY_MESSAGES_LIST
@@ -101,6 +102,12 @@ type (
 
 	RequestGetTimeline struct {
 		DateEnd string
+		Limit   uint64
+	}
+
+	RequestGetTimelineForHash struct {
+		Hash    string
+		DateEnd uint64 `json:",string"`
 		Limit   uint64
 	}
 

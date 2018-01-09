@@ -7,15 +7,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/YuriyNasretdinov/social-net/db"
 	"github.com/YuriyNasretdinov/social-net/events"
 	"github.com/YuriyNasretdinov/social-net/protocol"
-	"github.com/cockroachdb/cockroach-go/crdb"
 )
 
 const (
-	DATE_FORMAT = "2006-01-02"
+	dateFormat = "2006-01-02"
+
+	maxTimelineLength = 1 << 16
+	maxMessageLength  = 1 << 16
 )
 
 type (
@@ -190,55 +193,6 @@ func (ctx *WebsocketCtx) ProcessGetFriends(req *protocol.RequestGetFriends) prot
 	return reply
 }
 
-func (ctx *WebsocketCtx) ProcessGetTimeline(req *protocol.RequestGetTimeline) protocol.Reply {
-	dateEnd := req.DateEnd
-
-	if dateEnd == "" {
-		dateEnd = fmt.Sprint(time.Now().UnixNano())
-	}
-
-	limit := req.Limit
-	if limit > protocol.MAX_TIMELINE_LIMIT {
-		limit = protocol.MAX_TIMELINE_LIMIT
-	}
-
-	if limit <= 0 {
-		return &protocol.ResponseError{UserMsg: "Limit must be greater than 0"}
-	}
-
-	rows, err := db.GetFromTimelineStmt.Query(ctx.UserId, dateEnd, limit)
-	if err != nil {
-		return &protocol.ResponseError{UserMsg: "Cannot select timeline", Err: err}
-	}
-
-	reply := new(protocol.ReplyGetTimeline)
-	reply.Messages = make([]protocol.TimelineMessage, 0)
-
-	userIds := make([]string, 0)
-
-	defer rows.Close()
-	for rows.Next() {
-		var msg protocol.TimelineMessage
-		if err = rows.Scan(&msg.Id, &msg.UserId, &msg.Text, &msg.Ts); err != nil {
-			return &protocol.ResponseError{UserMsg: "Cannot select timeline", Err: err}
-		}
-
-		reply.Messages = append(reply.Messages, msg)
-		userIds = append(userIds, msg.UserId)
-	}
-
-	userNames, err := db.GetUserNames(userIds)
-	if err != nil {
-		return &protocol.ResponseError{UserMsg: "Cannot select timeline", Err: err}
-	}
-
-	for i, row := range reply.Messages {
-		reply.Messages[i].UserName = userNames[row.UserId]
-	}
-
-	return reply
-}
-
 func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) protocol.Reply {
 	// TODO: verify that user has rights to send message to the specified person
 	var (
@@ -248,6 +202,8 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) pr
 
 	if len(req.Text) == 0 {
 		return &protocol.ResponseError{UserMsg: "Message text must not be empty"}
+	} else if utf8.RuneCountInString(req.Text) > maxMessageLength {
+		return &protocol.ResponseError{UserMsg: fmt.Sprintf("Text cannot exceed %d characters", maxMessageLength)}
 	}
 
 	_, err = db.SendMessageStmt.Exec(ctx.UserId, req.UserTo, protocol.MSG_TYPE_OUT, req.Text, now)
@@ -272,70 +228,6 @@ func (ctx *WebsocketCtx) ProcessSendMessage(req *protocol.RequestSendMessage) pr
 			UserTo:       req.UserTo,
 			Ts:           fmt.Sprint(now),
 			Text:         req.Text,
-		},
-	}
-
-	return reply
-}
-
-func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline) protocol.Reply {
-	var (
-		err error
-		now = time.Now().UnixNano()
-	)
-
-	if len(req.Text) == 0 {
-		return &protocol.ResponseError{UserMsg: "Text must not be empty"}
-	}
-
-	userIds, err := db.GetUserFriends(ctx.UserId)
-	if err != nil {
-		return &protocol.ResponseError{UserMsg: "Could not get user ids", Err: err}
-	}
-
-	userIds = append(userIds, ctx.UserId)
-
-	err = crdb.ExecuteTx(db.Db, func(tx *sql.Tx) error {
-		var args = make([]interface{}, 0, len(userIds)*4)
-		var values = make([]string, 0, len(userIds))
-
-		var cnt = 1
-
-		for _, uid := range userIds {
-			values = append(values, fmt.Sprintf(
-				`($%d, $%d, $%d, $%d)`,
-				cnt, cnt+1, cnt+2, cnt+3,
-			))
-			cnt += 4
-			args = append(args, uid, ctx.UserId, req.Text, now)
-		}
-
-		_, err := tx.Exec(
-			`INSERT INTO timeline
-			(user_id, source_user_id, message, ts)
-			VALUES `+strings.Join(values, ", "),
-			args...,
-		)
-
-		return err
-	})
-
-	if err != nil {
-		return &protocol.ResponseError{UserMsg: "Could not add to timeline", Err: err}
-	}
-
-	reply := new(protocol.ReplyGeneric)
-	reply.Success = true
-
-	events.EventsFlow <- &events.ControlEvent{
-		EvType:   events.EVENT_NEW_TIMELINE_EVENT,
-		Listener: ctx.Listener,
-		Info: &events.InternalEventNewTimelineStatus{
-			UserId:        ctx.UserId,
-			FriendUserIds: userIds,
-			UserName:      ctx.UserName,
-			Ts:            fmt.Sprint(now),
-			Text:          req.Text,
 		},
 	}
 
@@ -490,7 +382,7 @@ func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) prot
 		return &protocol.ResponseError{UserMsg: "Could not get user profile", Err: err}
 	}
 
-	reply.Birthdate = birthdate.Format(DATE_FORMAT)
+	reply.Birthdate = birthdate.Format(dateFormat)
 
 	city, err := db.GetCityInfo(reply.CityId)
 	if err != nil {

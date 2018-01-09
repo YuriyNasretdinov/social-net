@@ -51,3 +51,17 @@ CREATE TABLE city (
   lat REAL,
   UNIQUE (name)
 );
+
+CREATE TABLE hashes (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  UNIQUE(name)
+);
+
+CREATE TABLE hashtimeline (
+  id SERIAL PRIMARY KEY,
+  hash_id BIGINT,
+  timeline_id BIGINT,
+  ts BIGINT,
+  INDEX(hash_id, ts)
+);

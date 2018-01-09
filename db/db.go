@@ -1,8 +1,10 @@
 package db
 
 import (
+	"bytes"
 	"database/sql"
 	"log"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +14,10 @@ type (
 		Name string
 		Lon  float64
 		Lat  float64
+	}
+
+	Querier interface {
+		Query(query string, args ...interface{}) (*sql.Rows, error)
 	}
 )
 
@@ -166,6 +172,53 @@ func GetUserNames(userIds []string) (map[string]string, error) {
 	}
 
 	return userNames, nil
+}
+
+func EscapeBuffer(b *bytes.Buffer, q string) {
+	for _, c := range q {
+		b.WriteRune(c)
+		if c == '\'' {
+			b.WriteRune(c)
+		}
+	}
+}
+
+func Escape(q string) string {
+	var b bytes.Buffer
+	EscapeBuffer(&b, q)
+	return b.String()
+}
+
+// INstr is used for VALUES( ... ) and string values
+func INstr(values []string) string {
+	var b bytes.Buffer
+
+	for idx, s := range values {
+		b.WriteByte('\'')
+		EscapeBuffer(&b, s)
+		b.WriteByte('\'')
+
+		if idx != len(values)-1 {
+			b.WriteByte(',')
+		}
+	}
+
+	return b.String()
+}
+
+// INuint is used for VALUES( ... ) and int values
+func INuint(values []uint64) string {
+	b := make([]byte, 0, len(values)*10)
+
+	for idx, v := range values {
+		b = strconv.AppendUint(b, v, 10)
+
+		if idx != len(values)-1 {
+			b = append(b, ',')
+		}
+	}
+
+	return string(b)
 }
 
 func GetCityInfo(id uint64) (*City, error) {
