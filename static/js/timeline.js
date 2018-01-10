@@ -1,6 +1,14 @@
 var DEFAULT_TIMELINE_LIMIT = 10
 
-loaders["timeline"] = function() {}
+loaders["timeline"] = function() {
+	var parts = window.location.pathname.split('/')
+
+	if (parts[2] == 'hash') {
+		ShowHash(decodeURIComponent(parts[3]))
+	} else {
+		ShowTimeline()
+	}
+}
 
 function SetUpTimelinePage() {
 	addEv("timeline_link", "click", function(ev) {
@@ -30,6 +38,7 @@ function addToTimeline(msgText) {
 }
 
 function createTimelineEl(msg) {
+	var hashRegex = /(#[^ ]+)/g
 	var div = document.createElement('div')
 	div.className = 'timeline_event'
 
@@ -40,7 +49,26 @@ function createTimelineEl(msg) {
 	var messageEl = document.createElement('div')
 	messageEl.className = 'timeline_msg'
 
-	messageEl.appendChild(document.createTextNode(msg.Text))
+	var textParts = msg.Text.split(hashRegex)
+
+	for (var i = 0; i < textParts.length; i++) {
+		var part = textParts[i]
+		if (hashRegex.test(part)) {
+			var a = document.createElement('a')
+			a.href = "#"
+			a.onclick = (function(part) {
+				return function(e) {
+					var hash = part.substr(1)
+					changeLocation("Timeline", "/timeline/hash/" + hash)
+					e.preventDefault()
+				}
+			})(part)
+			a.appendChild(document.createTextNode(part))
+			messageEl.appendChild(a)
+		} else {
+			messageEl.appendChild(document.createTextNode(part))
+		}
+	}
 
 	div.appendChild(userNameEl)
 	div.appendChild(createTsEl(msg.Ts))
@@ -49,9 +77,13 @@ function createTimelineEl(msg) {
 	return div
 }
 
-function showTimelineResponse(reply) {
+function showTimelineResponse(reply, first) {
 	var len = reply.Messages.length
 	var el = document.getElementById("timeline_texts")
+
+	if (first) {
+		el.innerHTML = ''
+	}
 
 	var minTs
 
@@ -75,7 +107,58 @@ function showTimelineResponse(reply) {
 					Limit: DEFAULT_TIMELINE_LIMIT + 1
 				},
 				function (reply) {
-					showTimelineResponse(reply)
+					showTimelineResponse(reply, false)
+				}
+			)
+		}
+		window.onscroll()
+	}
+}
+
+function showTimelineHashResponse(hash, reply, first) {
+	var len = reply.Messages.length
+	var el = document.getElementById("timeline_texts")
+
+	if (first) {
+		el.innerHTML = ''
+		var header = document.createElement('h3')
+		header.appendChild(document.createTextNode('Viewing timeline for #' + hash + ' '))
+		var a = document.createElement('a')
+		a.appendChild(document.createTextNode('cancel'))
+		a.onclick = function(e) {
+			changeLocation('Timeline', '/timeline/')
+			e.preventDefault()
+		}
+		a.href = '#'
+		header.className = 'hash_header'
+		header.appendChild(a)
+		el.appendChild(header)
+	}
+
+	var minTs
+
+	for (var i = 0; i < len; i++) {
+		var msg = reply.Messages[i]
+		el.appendChild(createTimelineEl(msg))
+		minTs = msg.Ts
+
+		// do not show 'extra' message because it would otherwise be duplicate
+		if (i >= DEFAULT_TIMELINE_LIMIT - 1) break
+	}
+
+	loadMoreFunc = null
+
+	if (len > DEFAULT_TIMELINE_LIMIT) {
+		loadMoreFunc = function() {
+			sendReq(
+				"REQUEST_GET_TIMELINE_FOR_HASH",
+				{
+					Hash: hash,
+					DateEnd: minTs,
+					Limit: DEFAULT_TIMELINE_LIMIT + 1
+				},
+				function (reply) {
+					showTimelineHashResponse(hash, reply, false)
 				}
 			)
 		}
@@ -88,10 +171,18 @@ function onNewTimelineEvent(msg) {
 	el.insertBefore(createTimelineEl(msg), el.firstChild)
 }
 
+function ShowHash(hash) {
+	sendReq(
+		"REQUEST_GET_TIMELINE_FOR_HASH",
+		{Hash: hash, Limit: DEFAULT_TIMELINE_LIMIT + 1},
+		function(reply) { showTimelineHashResponse(hash, reply, true) }
+	)
+}
+
 function ShowTimeline() {
 	sendReq(
 		"REQUEST_GET_TIMELINE",
 		{Limit: DEFAULT_TIMELINE_LIMIT + 1},
-		showTimelineResponse
+		function(reply) { showTimelineResponse(reply, true) }
 	)
 }

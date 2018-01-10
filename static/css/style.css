@@ -318,6 +318,10 @@ body{
 	margin-bottom: 5px;
 }
 
+.hash_header {
+	margin: 15px;
+}
+
 @media screen and (max-device-width: 480px) {
 	.users {
 		width: 100px;

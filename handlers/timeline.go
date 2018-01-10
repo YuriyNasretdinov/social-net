@@ -90,7 +90,8 @@ func getTimeline(q *getTimelineQuery) protocol.Reply {
 
 		rows, err = db.Db.Query(`SELECT id, source_user_id, message, ts
 			FROM timeline
-			WHERE id IN(` + db.INuint(q.timelineIDs) + `)`)
+			WHERE id IN(` + db.INuint(q.timelineIDs) + `)
+			ORDER BY ts DESC`)
 	}
 
 	if err != nil {

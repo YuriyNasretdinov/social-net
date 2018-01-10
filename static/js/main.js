@@ -302,15 +302,21 @@ window.onscroll = function(ev) {
 	}, 0)
 }
 
+window.onresize = window.onscroll
+
 function setUpPage() {
 	hideAll()
 	SetUpMessagesPage()
 	SetUpTimelinePage()
 	SetUpFriendsPage()
 	SetUpProfilePage()
+
+	if (window.location.pathname.length <= 1) {
+		window.location.pathname = '/timeline/'
+	}
+
 	ShowCurrent()
 
-	ShowTimeline()
 	redrawFriendsRequestCount()
 
 	document.getElementById('loading').style.display = 'none'
