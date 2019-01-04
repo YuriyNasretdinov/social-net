@@ -1,7 +1,7 @@
 Postgresql = "postgresql://root@127.0.0.1:26257/social?sslmode=disable"
 Memcache = "localhost:11211"
 Bind = ":80"
-BindLTS = ":443"
+BindTLS = ":443"
 Host = "vbambuke.ru"
 AvatarDir = "/home/web/avatars/"
 CertDir = "/home/web/certs"

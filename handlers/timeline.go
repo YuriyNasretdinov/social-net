@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -301,7 +302,7 @@ func (ctx *WebsocketCtx) ProcessAddToTimeline(req *protocol.RequestAddToTimeline
 
 	userIds = append(userIds, ctx.UserId)
 
-	err = crdb.ExecuteTx(db.Db, func(tx *sql.Tx) error {
+	err = crdb.ExecuteTx(context.Background(), db.Db, nil, func(tx *sql.Tx) error {
 		ids, err := insertTimeline(tx, ctx.UserId, userIds, req.Text, now)
 		if err != nil {
 			return err
